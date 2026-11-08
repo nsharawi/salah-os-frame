@@ -26,7 +26,7 @@ jobs:
           else
             echo "No permanent key set; using the debug key"
           fi
-          gradle assembleDebug --no-daemon --stacktrace
+          gradle assembleDebug --no-daemon --stacktrace -PvCode=$((100 + GITHUB_RUN_NUMBER)) -PvName=1.0.$GITHUB_RUN_NUMBER
       - uses: actions/upload-artifact@v4
         with:
           name: salah-os-apk
@@ -39,6 +39,7 @@ jobs:
           git checkout --orphan apk
           git rm -rf . -q
           cp /tmp/out/salah-os.apk .
-          git add salah-os.apk
+          printf '{"versionCode":%s,"versionName":"1.0.%s","sha256":"%s"}\n' $((100 + GITHUB_RUN_NUMBER)) $GITHUB_RUN_NUMBER $(sha256sum salah-os.apk | cut -d' ' -f1) > version.json
+          git add salah-os.apk version.json
           git commit -q -m "Build ${GITHUB_SHA::7}"
           git push -f origin apk

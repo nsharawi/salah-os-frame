@@ -31,6 +31,12 @@ public class MainActivity extends Activity {
     private FrameLayout root;
     private WebView web;
     private HostControl host;
+    private final Runnable updateTick = new Runnable() {
+        @Override public void run() {
+            if (host != null) host.autoCheck();
+            ui.postDelayed(this, 3L * 60 * 60 * 1000);
+        }
+    };
     private ImageView splash;
     private long startedAt;
     private boolean offline;
@@ -78,6 +84,7 @@ public class MainActivity extends Activity {
         setContentView(root);
         web.loadUrl(HOME_URL);
         host.selfTest();
+        ui.postDelayed(updateTick, 90 * 1000);
     }
 
     private class Client extends WebViewClient {

@@ -6,7 +6,15 @@ import android.media.AudioManager;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 
+import org.json.JSONObject;
+
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.util.Calendar;
 import java.io.FileWriter;
 import java.util.Date;
 
@@ -176,6 +184,102 @@ public class HostControl {
         } finally {
             try { if (d != null) d.close(); } catch (Throwable ignored) { }
         }
+    }
+
+    // ---- Updates: version.json and salah-os.apk are published to the apk branch by the build ----
+    private static final String BASE = "https://raw.githubusercontent.com/nsharawi/salah-os-frame/apk/";
+    private volatile String updMsg = "idle";
+    private volatile boolean updBusy;
+    private volatile int remoteCode;
+    private volatile String remoteName = "";
+
+    private long localCode() {
+        try { return act.getPackageManager().getPackageInfo(act.getPackageName(), 0).getLongVersionCode(); }
+        catch (Throwable t) { return 0; }
+    }
+
+    private String localName() {
+        try { return act.getPackageManager().getPackageInfo(act.getPackageName(), 0).versionName; }
+        catch (Throwable t) { return ""; }
+    }
+
+    /** Called every few hours. Installs only between 02:00 and 04:00 local time. */
+    void autoCheck() {
+        int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+        update(h >= 2 && h < 4, false);
+    }
+
+    private void update(final boolean install, final boolean manual) {
+        if (updBusy) return;
+        updBusy = true;
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try { doUpdate(install, manual); }
+                catch (Throwable t) { updMsg = "error: " + t.getClass().getSimpleName() + " " + t.getMessage(); }
+                finally { updBusy = false; }
+            }
+        }).start();
+    }
+
+    private InputStream open(String u) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(30000);
+        c.setUseCaches(false);
+        if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
+        return c.getInputStream();
+    }
+
+    private void doUpdate(boolean install, boolean manual) throws Exception {
+        updMsg = "checking";
+        StringBuilder sb = new StringBuilder();
+        try (InputStream in = open(BASE + "version.json?t=" + System.currentTimeMillis())) {
+            byte[] b = new byte[4096]; int n;
+            while ((n = in.read(b)) > 0) sb.append(new String(b, 0, n, "UTF-8"));
+        }
+        JSONObject o = new JSONObject(sb.toString());
+        remoteCode = o.getInt("versionCode");
+        remoteName = o.getString("versionName");
+        String sha = o.getString("sha256");
+        if (remoteCode <= localCode()) { updMsg = "current"; return; }
+        if (!install) { updMsg = "available"; return; }
+        int tries = prefs.getInt("upd_try_" + remoteCode, 0);
+        if (!manual && tries >= 3) { updMsg = "failed"; return; }
+        prefs.edit().putInt("upd_try_" + remoteCode, tries + 1).apply();
+        updMsg = "installing";
+        File f = new File(act.getFilesDir(), "update.apk");
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        try (InputStream in = open(BASE + "salah-os.apk?t=" + System.currentTimeMillis());
+             FileOutputStream out = new FileOutputStream(f)) {
+            byte[] b = new byte[16384]; int n;
+            while ((n = in.read(b)) > 0) { out.write(b, 0, n); md.update(b, 0, n); }
+        }
+        StringBuilder hex = new StringBuilder();
+        for (byte x : md.digest()) hex.append(String.format("%02x", x));
+        if (!hex.toString().equalsIgnoreCase(sha)) { f.delete(); updMsg = "error: checksum"; return; }
+        Dadb d = null;
+        try {
+            d = connect();
+            d.push(f, "/data/local/tmp/salahos-update.apk", 420, System.currentTimeMillis());
+            // The install replaces this app, so the restart is done by a command that outlives it.
+            d.open("shell:nohup sh -c 'pm install -r /data/local/tmp/salahos-update.apk; rm -f /data/local/tmp/salahos-update.apk; am start -n com.paltech.salahos/.MainActivity' >/data/local/tmp/salahos-update.log 2>&1 &");
+            Thread.sleep(2500);
+        } finally {
+            try { if (d != null) d.close(); } catch (Throwable ignored) { }
+        }
+    }
+
+    @JavascriptInterface
+    public String updateState() {
+        return "{\"cur\":\"" + localName() + "\",\"code\":" + localCode() + ",\"remote\":\"" + remoteName
+                + "\",\"rc\":" + remoteCode + ",\"s\":\"" + updMsg.replace("\"", "'") + "\",\"busy\":" + updBusy + "}";
+    }
+
+    /** install=false only checks. install=true installs now if a newer version exists. */
+    @JavascriptInterface
+    public void updateCheck(boolean install) {
+        if (!trusted) return;
+        update(install, install);
     }
 
     private Dadb connect() {

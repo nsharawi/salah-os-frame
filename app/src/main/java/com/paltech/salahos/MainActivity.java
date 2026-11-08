@@ -33,9 +33,7 @@ public class MainActivity extends Activity {
     private ImageView splash;
     private long startedAt;
     private boolean offline;
-    private int taps;
-    private long firstTap;
-
+    
     private final Runnable retry = new Runnable() {
         @Override public void run() {
             if (offline && web != null) web.loadUrl(HOME_URL);
@@ -117,20 +115,42 @@ public class MainActivity extends Activity {
         }, wait);
     }
 
-    /** Maintenance exit: tap the top-left corner 5 times within 4 seconds to open Android Settings. */
+    /**
+     * Maintenance taps (5 quick taps within 4 seconds):
+     * top-left corner = restart the app with a fresh start, top-right corner = open Android Settings.
+     */
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
-        if (e.getAction() == MotionEvent.ACTION_DOWN && e.getX() < 160 && e.getY() < 160) {
-            long now = System.currentTimeMillis();
-            if (now - firstTap > 4000) { taps = 0; firstTap = now; }
-            if (++taps >= 5) {
-                taps = 0;
-                try {
-                    startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                } catch (Exception ignored) { }
+        if (e.getAction() == MotionEvent.ACTION_DOWN && e.getY() < 160) {
+            int w = getWindow().getDecorView().getWidth();
+            if (e.getX() < 160) {
+                if (cornerTaps(0)) restartApp();
+            } else if (e.getX() > w - 160) {
+                if (cornerTaps(1)) openSettings();
             }
         }
         return super.dispatchTouchEvent(e);
+    }
+
+    private final int[] tapCount = new int[2];
+    private final long[] tapStart = new long[2];
+
+    private boolean cornerTaps(int corner) {
+        long now = System.currentTimeMillis();
+        if (now - tapStart[corner] > 4000) { tapCount[corner] = 0; tapStart[corner] = now; }
+        if (++tapCount[corner] >= 5) { tapCount[corner] = 0; return true; }
+        return false;
+    }
+
+    private void restartApp() {
+        if (web != null) web.clearCache(true);
+        recreate();
+    }
+
+    private void openSettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception ignored) { }
     }
 
     @Override

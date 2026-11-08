@@ -127,6 +127,53 @@ public class HostControl {
     @JavascriptInterface
     public String hostResult() { return last; }
 
+    private volatile boolean wifiBusy;
+    private volatile String wifiOut = "";
+
+    private static String q(String v) { return "'" + v.replace("'", "'\\''") + "'"; }
+
+    /** op: status, scan or connect. sec: open, owe, wep, wpa2 or wpa3. Poll wifiBusy() and read wifiResult(). */
+    @JavascriptInterface
+    public void wifi(final String op, final String ssid, final String sec, final String pass) {
+        if (!trusted || wifiBusy) return;
+        final String cmd;
+        if ("status".equals(op)) cmd = "cmd wifi status";
+        else if ("scan".equals(op)) cmd = "cmd wifi start-scan; sleep 3; cmd wifi list-scan-results";
+        else if ("connect".equals(op) && ssid != null && ssid.length() > 0
+                && sec != null && sec.matches("open|owe|wep|wpa2|wpa3"))
+            cmd = "cmd wifi connect-network " + q(ssid) + " " + sec
+                    + (pass != null && pass.length() > 0 && !sec.equals("open") && !sec.equals("owe") ? " " + q(pass) : "")
+                    + "; sleep 7; cmd wifi status";
+        else return;
+        wifiBusy = true;
+        wifiOut = "";
+        new Thread(new Runnable() {
+            @Override public void run() {
+                wifiOut = outShell(cmd);
+                wifiBusy = false;
+            }
+        }).start();
+    }
+
+    @JavascriptInterface
+    public boolean wifiBusy() { return wifiBusy; }
+
+    @JavascriptInterface
+    public String wifiResult() { return wifiOut; }
+
+    /** Runs a command and returns what it printed. */
+    String outShell(String cmd) {
+        Dadb d = null;
+        try {
+            d = connect();
+            return d.shell(cmd).getAllOutput();
+        } catch (Throwable t) {
+            return "error: " + t.getClass().getSimpleName() + " " + t.getMessage();
+        } finally {
+            try { if (d != null) d.close(); } catch (Throwable ignored) { }
+        }
+    }
+
     private Dadb connect() {
         return Dadb.create("127.0.0.1", ADB_PORT, AdbKeyPair.read(priv, pub));
     }

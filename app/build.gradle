@@ -16,3 +16,7 @@ android {
     }
     lint { abortOnError false }
 }
+
+dependencies {
+    implementation 'dev.mobile:dadb:1.2.10'
+}

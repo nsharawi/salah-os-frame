@@ -30,6 +30,7 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private FrameLayout root;
     private WebView web;
+    private HostControl host;
     private ImageView splash;
     private long startedAt;
     private boolean offline;
@@ -60,6 +61,9 @@ public class MainActivity extends Activity {
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
         WebView.setWebContentsDebuggingEnabled(true);
+        host = new HostControl(this);
+        host.applySaved();
+        web.addJavascriptInterface(host, "SalahFrame");
         web.setWebViewClient(new Client());
         root.addView(web, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -73,9 +77,21 @@ public class MainActivity extends Activity {
 
         setContentView(root);
         web.loadUrl(HOME_URL);
+        host.selfTest();
     }
 
     private class Client extends WebViewClient {
+        @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
+            host.trusted = url != null && url.startsWith(HOME_URL);
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            String u = request.getUrl().toString();
+            return !(u.startsWith(HOME_URL) || u.startsWith("file:///android_asset/"));
+        }
+
         @Override
         public void onPageFinished(WebView view, String url) {
             if (url != null && url.startsWith("https://")) offline = false;
@@ -142,7 +158,7 @@ public class MainActivity extends Activity {
         return false;
     }
 
-    private void restartApp() {
+    void restartApp() {
         if (web != null) web.clearCache(true);
         recreate();
     }

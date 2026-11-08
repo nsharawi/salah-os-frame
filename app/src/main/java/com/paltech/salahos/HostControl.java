@@ -132,7 +132,7 @@ public class HostControl {
 
     private static String q(String v) { return "'" + v.replace("'", "'\\''") + "'"; }
 
-    /** op: status, scan or connect. sec: open, owe, wep, wpa2 or wpa3. Poll wifiBusy() and read wifiResult(). */
+    /** op: status, scan, connect or forget. sec: open, owe, wep, wpa2 or wpa3. Poll wifiBusy() and read wifiResult(). */
     @JavascriptInterface
     public void wifi(final String op, final String ssid, final String sec, final String pass) {
         if (!trusted || wifiBusy) return;
@@ -144,6 +144,10 @@ public class HostControl {
             cmd = "cmd wifi connect-network " + q(ssid) + " " + sec
                     + (pass != null && pass.length() > 0 && !sec.equals("open") && !sec.equals("owe") ? " " + q(pass) : "")
                     + "; sleep 7; cmd wifi status";
+        else if ("forget".equals(op) && ssid != null && ssid.length() > 0)
+            cmd = "cmd wifi list-networks | awk -v s=" + q(ssid)
+                    + " 'NR>1{id=$1; $1=\"\"; $NF=\"\"; sub(/^ +/,\"\"); sub(/ +$/,\"\"); if($0==s) print id}'"
+                    + " | while read i; do cmd wifi forget-network $i; done; sleep 2; cmd wifi status";
         else return;
         wifiBusy = true;
         wifiOut = "";

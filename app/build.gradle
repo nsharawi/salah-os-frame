@@ -1,5 +1,8 @@
 plugins { id 'com.android.application' }
 
+def vCodeProp = (project.findProperty('vCode') ?: '2').toString()
+def vNameProp = (project.findProperty('vName') ?: '1.0.1').toString()
+
 android {
     namespace 'com.paltech.salahos'
     compileSdk 34
@@ -7,8 +10,8 @@ android {
         applicationId 'com.paltech.salahos'
         minSdk 26
         targetSdk 34
-        versionCode (project.findProperty('vCode') ?: '2') as int
-        versionName (project.findProperty('vName') ?: '1.0.1')
+        versionCode Integer.parseInt(vCodeProp)
+        versionName vNameProp
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

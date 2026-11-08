@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
     private final Runnable updateTick = new Runnable() {
         @Override public void run() {
             if (host != null) host.autoCheck();
-            ui.postDelayed(this, 3L * 60 * 60 * 1000);
+            ui.postDelayed(this, 30L * 60 * 1000);
         }
     };
     private ImageView splash;

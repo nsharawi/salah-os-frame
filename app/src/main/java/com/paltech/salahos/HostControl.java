@@ -14,7 +14,6 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
-import java.util.Calendar;
 import java.io.FileWriter;
 import java.util.Date;
 
@@ -203,10 +202,17 @@ public class HostControl {
         catch (Throwable t) { return ""; }
     }
 
-    /** Called every few hours. Installs only between 02:00 and 04:00 local time. */
+    private volatile boolean screenBusy;
+
+    /** The display tells us when a prayer countdown or adhan is showing; updates wait until it is over. */
+    @JavascriptInterface
+    public void setBusy(boolean b) {
+        if (trusted) screenBusy = b;
+    }
+
+    /** Called every 30 minutes. Installs a newer version as soon as there is one, except during a prayer alert. */
     void autoCheck() {
-        int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        update(h >= 2 && h < 4, false);
+        update(!screenBusy, false);
     }
 
     private void update(final boolean install, final boolean manual) {

@@ -14,6 +14,22 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    // Permanent signing key. CI supplies it from GitHub secrets; without it the normal debug key is used.
+    signingConfigs {
+        salahos {
+            if (System.getenv('KS_FILE')) {
+                storeFile file(System.getenv('KS_FILE'))
+                storePassword System.getenv('KS_PASS')
+                keyAlias 'salahos'
+                keyPassword System.getenv('KS_PASS')
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            if (System.getenv('KS_FILE')) signingConfig signingConfigs.salahos
+        }
+    }
     lint { abortOnError false }
 }
 

@@ -14,7 +14,19 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.7' }
-      - run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Build and sign
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/salahos.jks"
+            export KS_FILE="$RUNNER_TEMP/salahos.jks" KS_PASS="$KEYSTORE_PASS"
+            echo "Signing with the permanent key"
+          else
+            echo "No permanent key set; using the debug key"
+          fi
+          gradle assembleDebug --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: salah-os-apk

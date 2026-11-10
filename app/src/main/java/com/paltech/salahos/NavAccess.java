@@ -37,12 +37,34 @@ public class NavAccess extends AccessibilityService {
 
     static boolean connected() { return instance != null; }
 
-    /** Show the bar (called when a technician opens another app). Enables the service first if needed. */
+    /**
+     * Makes sure Android has this service switched on and connected. Called at every app start and whenever the
+     * bar is needed but missing. Some Android builds drop or fail to reconnect the service after a restart, so
+     * when it is not connected the setting is cleared and set again, which makes Android connect it afresh.
+     */
+    static void ensure(final Context c) {
+        final Context app = c.getApplicationContext();
+        new Thread(new Runnable() {
+            @Override public void run() {
+                if (instance != null) return;
+                String on = HostControl.shell(app, "settings get secure enabled_accessibility_services");
+                if (on != null && on.contains(COMPONENT)) {
+                    try { Thread.sleep(2500); } catch (InterruptedException ignored) { }   // listed: give Android a moment to connect it
+                    if (instance != null) return;
+                    HostControl.shell(app, "settings put secure enabled_accessibility_services ''");
+                    try { Thread.sleep(700); } catch (InterruptedException ignored) { }
+                }
+                HostControl.shell(app, "settings put secure enabled_accessibility_services " + COMPONENT
+                        + "; settings put secure accessibility_enabled 1");
+            }
+        }).start();
+    }
+
+    /** Show the bar (called when a technician opens another app). Reconnects the service first if needed. */
     static void show(final Context c) {
         NavAccess n = instance;
         if (n != null) { n.ui.post(new Runnable() { @Override public void run() { NavAccess s = instance; if (s != null) s.showBar(); } }); return; }
-        HostControl.shellAsync(c.getApplicationContext(),
-                "settings put secure enabled_accessibility_services " + COMPONENT + "; settings put secure accessibility_enabled 1");
+        ensure(c);      // onServiceConnected shows the bar once Android connects the service
     }
 
     static void hide() {

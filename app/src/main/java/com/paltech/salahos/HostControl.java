@@ -288,6 +288,57 @@ public class HostControl {
         update(install, install);
     }
 
+    /** Runs a command over the frame's control channel from anywhere in the app (used by technician mode). */
+    static String shell(Context c, String cmd) {
+        Dadb d = null;
+        try {
+            d = Dadb.create("127.0.0.1", ADB_PORT,
+                    AdbKeyPair.read(new File(c.getFilesDir(), "adbkey"), new File(c.getFilesDir(), "adbkey.pub")));
+            return d.shell(cmd).getAllOutput();
+        } catch (Throwable t) {
+            return "error: " + t.getClass().getSimpleName() + " " + t.getMessage();
+        } finally {
+            try { if (d != null) d.close(); } catch (Throwable ignored) { }
+        }
+    }
+
+    static void shellAsync(final Context c, final String cmd) {
+        new Thread(new Runnable() { @Override public void run() { shell(c, cmd); } }).start();
+    }
+
+    private String readFile(String name) {
+        try {
+            File f = new File(act.getFilesDir(), name);
+            if (!f.exists()) return "";
+            return new String(java.nio.file.Files.readAllBytes(f.toPath()), java.nio.charset.StandardCharsets.UTF_8).trim();
+        } catch (Throwable t) { return ""; }
+    }
+
+    /** The frame's Salah OS serial (SOS-....), written at setup. Empty when the frame has none yet. */
+    @JavascriptInterface
+    public String serial() {
+        String s = readFile("serial.txt");
+        return s.matches("[A-Z0-9-]{6,24}") ? s : "";
+    }
+
+    @JavascriptInterface
+    public String versionName() { return localName(); }
+
+    /** True when the last control-channel test at start-up worked. */
+    boolean controlOk() { return readFile("hostcheck.txt").endsWith(" ok"); }
+
+    /** Opens Android's Wi-Fi screen. Only from the bundled "no internet" page, so a frame can be connected on first run. */
+    @JavascriptInterface
+    public void openWifi() {
+        if (!act.isOffline()) return;
+        act.runOnUiThread(new Runnable() {
+            @Override public void run() {
+                try { act.startActivity(new android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)); }
+                catch (Throwable ignored) { }
+            }
+        });
+    }
+
     private Dadb connect() {
         return Dadb.create("127.0.0.1", ADB_PORT, AdbKeyPair.read(priv, pub));
     }

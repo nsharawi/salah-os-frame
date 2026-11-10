@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -26,11 +25,15 @@ public class MainActivity extends Activity {
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
     private static final long MIN_SPLASH_MS = 1800;
     private static final long RETRY_MS = 15000;
+    private static final String TECH_URL = "file:///android_asset/tech.html";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private FrameLayout root;
     private WebView web;
     private HostControl host;
+    private Tech tech;
+    static volatile boolean resumed;
+    private WebView techView;
     private final Runnable updateTick = new Runnable() {
         @Override public void run() {
             if (host != null) host.autoCheck();
@@ -69,6 +72,7 @@ public class MainActivity extends Activity {
         WebView.setWebContentsDebuggingEnabled(true);
         host = new HostControl(this);
         host.applySaved();
+        tech = new Tech(this);
         web.addJavascriptInterface(host, "SalahFrame");
         web.setWebViewClient(new Client());
         root.addView(web, new FrameLayout.LayoutParams(
@@ -139,41 +143,63 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Maintenance taps (5 quick taps within 4 seconds):
-     * top-left corner = restart the app with a fresh start, top-right corner = open Android Settings.
+     * Technician mode: 5 quick taps in the top-left corner (within 3 seconds) open the PIN pad.
+     * Nothing on screen hints at it.
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
-        if (e.getAction() == MotionEvent.ACTION_DOWN && e.getY() < 160) {
-            int w = getWindow().getDecorView().getWidth();
-            if (e.getX() < 160) {
-                if (cornerTaps(0)) restartApp();
-            } else if (e.getX() > w - 160) {
-                if (cornerTaps(1)) openSettings();
-            }
+        if (e.getAction() == MotionEvent.ACTION_DOWN) {
+            Tech.touch();
+            if (techView == null && e.getY() < 160 && e.getX() < 160 && cornerTaps()) showTech();
         }
         return super.dispatchTouchEvent(e);
     }
 
-    private final int[] tapCount = new int[2];
-    private final long[] tapStart = new long[2];
+    private int tapCount;
+    private long tapStart;
 
-    private boolean cornerTaps(int corner) {
+    private boolean cornerTaps() {
         long now = System.currentTimeMillis();
-        if (now - tapStart[corner] > 4000) { tapCount[corner] = 0; tapStart[corner] = now; }
-        if (++tapCount[corner] >= 5) { tapCount[corner] = 0; return true; }
+        if (now - tapStart > 3000) { tapCount = 0; tapStart = now; }
+        if (++tapCount >= 5) { tapCount = 0; return true; }
         return false;
+    }
+
+    HostControl host() { return host; }
+    boolean isOffline() { return offline; }
+
+    /** Shows the technician page (PIN pad, then the app grid) on top of the display. */
+    void showTech() {
+        if (techView != null) return;
+        try {
+            WebView v = new WebView(this);
+            v.setBackgroundColor(Color.BLACK);
+            v.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            WebSettings ts = v.getSettings();
+            ts.setJavaScriptEnabled(true);
+            ts.setSupportZoom(false);
+            v.addJavascriptInterface(tech, "Tech");
+            v.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return true; }
+            });
+            root.addView(v, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            techView = v;
+            v.loadUrl(TECH_URL);
+        } catch (Throwable ignored) { techView = null; }
+    }
+
+    void hideTech() {
+        if (techView == null) return;
+        WebView v = techView;
+        techView = null;
+        try { root.removeView(v); v.destroy(); } catch (Throwable ignored) { }
     }
 
     void restartApp() {
         if (web != null) web.clearCache(true);
         recreate();
-    }
-
-    private void openSettings() {
-        try {
-            startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } catch (Exception ignored) { }
     }
 
     @Override
@@ -192,12 +218,25 @@ public class MainActivity extends Activity {
 
     @Override public void onBackPressed() { /* stay on the display */ }
 
-    @Override protected void onResume() { super.onResume(); web.onResume(); }
-    @Override protected void onPause() { web.onPause(); super.onPause(); }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        resumed = true;
+        web.onResume();
+        NavService.stop(this);
+        if (Tech.expired()) Tech.unlocked = false;
+        if (Tech.unlocked) { Tech.touch(); if (techView == null) showTech(); else techView.reload(); }
+        else hideTech();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); }
+    @Override protected void onPause() { resumed = false; web.onPause(); super.onPause(); }
 
     @Override
     protected void onDestroy() {
         ui.removeCallbacksAndMessages(null);
+        hideTech();
         if (web != null) { root.removeView(web); web.destroy(); }
         super.onDestroy();
     }

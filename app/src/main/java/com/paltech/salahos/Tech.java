@@ -1,6 +1,10 @@
 package com.paltech.salahos;
 
 import android.content.ComponentName;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.SystemClock;
+import android.provider.Settings;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -33,8 +37,10 @@ public class Tech {
     private static final int MAX_FAILS = 5;
     private static final long LOCKOUT_MS = 5L * 60 * 1000;
 
-    static volatile boolean unlocked;
-    static volatile long lastUse;
+    // Unlocked state. Kept in memory and mirrored to preferences, so the navigation bar can come back if
+    // Android restarts the app while a technician is in another app. A frame restart always locks.
+    private static volatile long last;          // elapsedRealtime of the last technician action, 0 = locked
+    private static long saved;
     private static int fails;
     private static long lockedUntil;
 
@@ -42,8 +48,38 @@ public class Tech {
 
     Tech(MainActivity a) { act = a; }
 
-    static void touch() { lastUse = System.currentTimeMillis(); }
-    static boolean expired() { return unlocked && System.currentTimeMillis() - lastUse > IDLE_MS; }
+    private static SharedPreferences prefs(Context c) { return c.getSharedPreferences("frame", Context.MODE_PRIVATE); }
+
+    private static int boot(Context c) {
+        try { return Settings.Global.getInt(c.getContentResolver(), Settings.Global.BOOT_COUNT); } catch (Throwable t) { return 0; }
+    }
+
+    static boolean isOpen(Context c) {
+        long now = SystemClock.elapsedRealtime();
+        if (last == 0) {
+            SharedPreferences p = prefs(c);
+            long l = p.getLong("tech_last", 0);
+            if (l > 0 && p.getInt("tech_boot", -1) == boot(c) && now >= l) last = l;
+        }
+        if (last == 0) return false;
+        if (now - last > IDLE_MS) { setLocked(c); return false; }
+        return true;
+    }
+
+    static void touch(Context c) {
+        if (last == 0) return;
+        last = SystemClock.elapsedRealtime();
+        if (last - saved > 5000) save(c);
+    }
+
+    private static void save(Context c) {
+        saved = last;
+        prefs(c).edit().putLong("tech_last", last).putInt("tech_boot", boot(c)).apply();
+    }
+
+    static void setUnlocked(Context c) { last = SystemClock.elapsedRealtime(); save(c); }
+
+    static void setLocked(Context c) { last = 0; saved = 0; prefs(c).edit().remove("tech_last").apply(); }
 
     private String pinRecord() {
         try {
@@ -86,7 +122,7 @@ public class Tech {
         if (lockedUntil > now) return "locked:" + ((lockedUntil - now) / 1000 + 1);
         String rec = pinRecord();
         if (rec.isEmpty() || (pin != null && matches(rec, pin))) {
-            fails = 0; unlocked = true; touch();
+            fails = 0; setUnlocked(act);
             return "ok";
         }
         if (++fails >= MAX_FAILS) { fails = 0; lockedUntil = now + LOCKOUT_MS; return "locked:" + (LOCKOUT_MS / 1000); }
@@ -94,7 +130,7 @@ public class Tech {
     }
 
     @JavascriptInterface
-    public boolean isUnlocked() { return unlocked && !expired(); }
+    public boolean isUnlocked() { return isOpen(act); }
 
     private static String icon(Drawable d) {
         try {
@@ -134,11 +170,11 @@ public class Tech {
     @JavascriptInterface
     public void launch(final String pkg, final String cls) {
         if (!isUnlocked()) return;
-        touch();
+        touch(act);
         act.runOnUiThread(new Runnable() {
             @Override public void run() {
                 try {
-                    NavService.start(act);
+                    NavAccess.show(act);
                     act.startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                             .setComponent(new ComponentName(pkg, cls))
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
@@ -155,7 +191,7 @@ public class Tech {
             o.put("serial", act.host().serial());
             o.put("version", act.host().versionName());
             o.put("control", act.host().controlOk());
-            o.put("overlay", NavService.allowed(act));
+            o.put("overlay", NavAccess.connected());
             o.put("idleMinutes", IDLE_MS / 60000);
         } catch (Throwable ignored) { }
         return o.toString();
@@ -178,8 +214,8 @@ public class Tech {
     public void close() { lock(); }
 
     void lockNow() {
-        unlocked = false;
-        NavService.stop(act);
+        setLocked(act);
+        NavAccess.hide();
         act.hideTech();
     }
 }

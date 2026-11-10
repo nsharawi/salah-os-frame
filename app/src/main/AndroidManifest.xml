@@ -3,7 +3,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Technician mode lists the installed apps so a technician can open them. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
@@ -33,6 +32,16 @@
             </intent-filter>
         </activity>
 
-        <service android:name=".NavService" android:exported="false" />
+        <!-- Technician mode's Back / Home / Recents bar. Enabled by the setup script; shows only while unlocked. -->
+        <service
+            android:name=".NavAccess"
+            android:exported="true"
+            android:label="@string/nav_access_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/nav_access" />
+        </service>
     </application>
 </manifest>

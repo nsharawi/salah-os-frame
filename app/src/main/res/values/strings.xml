@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_access_label">Salah OS technician bar</string>
+    <string name="nav_access_description">Shows Back, Home, Recents and Lock buttons for a technician. It does not read the screen.</string>
+</resources>

@@ -149,7 +149,7 @@ public class MainActivity extends Activity {
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
         if (e.getAction() == MotionEvent.ACTION_DOWN) {
-            Tech.touch();
+            Tech.touch(this);
             if (techView == null && e.getY() < 160 && e.getX() < 160 && cornerTaps()) showTech();
         }
         return super.dispatchTouchEvent(e);
@@ -223,9 +223,8 @@ public class MainActivity extends Activity {
         super.onResume();
         resumed = true;
         web.onResume();
-        NavService.stop(this);
-        if (Tech.expired()) Tech.unlocked = false;
-        if (Tech.unlocked) { Tech.touch(); if (techView == null) showTech(); else techView.reload(); }
+        NavAccess.hide();
+        if (Tech.isOpen(this)) { Tech.touch(this); if (techView == null) showTech(); else techView.reload(); }
         else hideTech();
     }
 

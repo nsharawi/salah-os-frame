@@ -145,14 +145,17 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Technician mode: 5 quick taps in the top-left corner (within 3 seconds) open the PIN pad.
+     * Technician mode: 5 quick taps in the top corner opposite the Settings gear (within 3 seconds) open the PIN pad.
      * Nothing on screen hints at it.
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
         if (e.getAction() == MotionEvent.ACTION_DOWN) {
             Tech.touch(this);
-            if (techView == null && e.getY() < 160 && e.getX() < 160 && cornerTaps()) showTech();
+            // The hidden corner is the top corner opposite the Settings gear: top-right, or top-left in Arabic.
+            int w = getWindow().getDecorView().getWidth();
+            boolean corner = host != null && host.rtl() ? e.getX() < 160 : e.getX() > w - 160;
+            if (techView == null && e.getY() < 160 && corner && cornerTaps()) showTech();
         }
         return super.dispatchTouchEvent(e);
     }

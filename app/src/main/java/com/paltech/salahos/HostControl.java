@@ -324,6 +324,15 @@ public class HostControl {
     @JavascriptInterface
     public String versionName() { return localName(); }
 
+    /** The display tells the app which way it reads, so the hidden technician corner stays opposite the Settings gear. */
+    @JavascriptInterface
+    public void setRtl(boolean rtl) {
+        if (!trusted) return;
+        if (prefs.getBoolean("rtl", false) != rtl) prefs.edit().putBoolean("rtl", rtl).apply();
+    }
+
+    boolean rtl() { return prefs.getBoolean("rtl", false); }
+
     /** True when the last control-channel test at start-up worked. */
     boolean controlOk() { return readFile("hostcheck.txt").endsWith(" ok"); }
 

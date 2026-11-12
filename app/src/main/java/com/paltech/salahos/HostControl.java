@@ -342,8 +342,16 @@ public class HostControl {
         if (!act.isOffline()) return;
         act.runOnUiThread(new Runnable() {
             @Override public void run() {
-                try { act.startActivity(new android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)); }
-                catch (Throwable ignored) { }
+                try {
+                    act.startActivity(new android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS));
+                } catch (Throwable t) {
+                    /* Some frame builds do not answer that request from an app. Ask the system
+                       itself, over the control channel, rather than leave the button dead. */
+                    android.util.Log.w("SalahHost", "Wi-Fi settings did not open directly: " + t);
+                    new Thread(new Runnable() {
+                        @Override public void run() { runShell("am start -a android.settings.WIFI_SETTINGS"); }
+                    }).start();
+                }
             }
         });
     }

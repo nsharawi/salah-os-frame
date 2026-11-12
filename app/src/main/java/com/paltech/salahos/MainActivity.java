@@ -45,10 +45,16 @@ public class MainActivity extends Activity {
     private ImageView splash;
     private long startedAt;
     private boolean offline;
+    /* True from a failed load of the site until the next attempt starts. WebView reports
+       onPageFinished for a page that FAILED too, with the site's own address, straight after
+       onReceivedError. Without this that call looked like success: it cleared `offline` while the
+       no-internet page was on screen, which silently stopped the retries and made the Wi-Fi
+       button on that page do nothing. */
+    private boolean loadFailed;
     
     private final Runnable retry = new Runnable() {
         @Override public void run() {
-            if (offline && web != null) web.loadUrl(HOME_URL);
+            if (offline && web != null) { loadFailed = false; web.loadUrl(HOME_URL); }
         }
     };
 
@@ -111,7 +117,7 @@ public class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
-            if (url != null && url.startsWith("https://")) offline = false;
+            if (url != null && url.startsWith("https://") && !loadFailed) offline = false;
             hideSplash();
         }
 
@@ -129,6 +135,7 @@ public class MainActivity extends Activity {
 
     private void goOffline() {
         offline = true;
+        loadFailed = true;
         ui.removeCallbacks(retry);
         ui.postDelayed(retry, RETRY_MS);
         web.loadUrl(OFFLINE_URL);

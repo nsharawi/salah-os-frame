@@ -100,6 +100,7 @@ final class DhcpServer {
         StringBuilder mac = new StringBuilder();
         for (int i = 28; i < 34; i++) mac.append(String.format("%02x", p[i] & 255));
         int host = lease(mac.toString());
+        Log.i(TAG, (type == 1 ? "DISCOVER" : "REQUEST") + " from " + mac + " -> " + NET + "." + host);
 
         byte[] r = new byte[300];
         r[0] = 2; r[1] = 1; r[2] = 6; r[3] = 0;             /* reply, ethernet, 6-byte address */

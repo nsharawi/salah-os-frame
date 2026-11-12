@@ -143,6 +143,7 @@ final class HotspotServer {
             }
         }
 
+        Log.i(TAG, method + " " + path + " from " + c.getInetAddress());
         if ("/networks".equals(path)) { send(out, 200, "application/json", networks()); return; }
         if ("/state".equals(path))    { send(out, 200, "application/json", stateJson()); return; }
         if ("/join".equals(path) && "POST".equals(method)) { send(out, 200, "application/json", join(body)); return; }

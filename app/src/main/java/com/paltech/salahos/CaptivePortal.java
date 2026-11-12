@@ -100,7 +100,9 @@ final class CaptivePortal {
         /* Worth saying out loud: if the firewall refuses these, the phone joins the frame and
            then sits there, which looks like nothing at all going wrong. */
         if (said != null && said.trim().length() > 0) Log.w(TAG, "iptables " + op + " said: " + said.trim());
-        if ("-A".equals(op)) Log.i(TAG, "rules now: " + host.outShell("iptables -t nat -S PREROUTING 2>&1"));
+        if ("-A".equals(op)) {
+            Log.i(TAG, "rules in: " + host.outShell("iptables -t nat -S PREROUTING 2>&1; iptables -t nat -S POSTROUTING 2>&1"));
+        }
     }
 
     private void loop() {
@@ -110,6 +112,7 @@ final class CaptivePortal {
                 DatagramPacket in = new DatagramPacket(buf, buf.length);
                 sock.receive(in);
                 byte[] out = reply(in.getData(), in.getLength());
+                if (asked < 8) { asked++; Log.i(TAG, "name asked for: " + nameIn(in.getData(), in.getLength())); }
                 if (out != null) sock.send(new DatagramPacket(out, out.length, in.getAddress(), in.getPort()));
             } catch (java.net.SocketTimeoutException e) {
                 /* nothing asked this second */
@@ -123,6 +126,22 @@ final class CaptivePortal {
      * Answers an A question with the frame's address, and anything else with "no such name" so the
      * phone stops asking. Only one question per message is handled, which is all any phone sends.
      */
+    private int asked;
+
+    /** Just for the log: the name out of a query, so a run shows what the phone looked up. */
+    private static String nameIn(byte[] q, int len) {
+        StringBuilder b = new StringBuilder();
+        int i = 12;
+        while (i < len && q[i] != 0) {
+            int l = q[i] & 255;
+            if (l > 63 || i + l + 1 > len) return "?";
+            if (b.length() > 0) b.append('.');
+            for (int k = 1; k <= l; k++) b.append((char) (q[i + k] & 255));
+            i += l + 1;
+        }
+        return b.length() == 0 ? "?" : b.toString();
+    }
+
     private byte[] reply(byte[] q, int len) {
         if (len < 18) return null;
         if ((q[2] & 0x80) != 0) return null;                 /* already an answer */

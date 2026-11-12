@@ -23,7 +23,9 @@ import android.widget.ImageView;
 public class MainActivity extends Activity {
     private static final String HOME_URL = "https://salah-os.web.app/";
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
-    private static final long MIN_SPLASH_MS = 1800;
+    /* Just long enough for the page to have painted; the half-second fade covers the rest.
+       Any longer is dead time the frame spends showing a logo it no longer needs to. */
+    private static final long MIN_SPLASH_MS = 400;
     private static final long RETRY_MS = 15000;
     private static final String TECH_URL = "file:///android_asset/tech.html";
 

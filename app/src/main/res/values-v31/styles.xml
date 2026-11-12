@@ -6,6 +6,9 @@
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>
         <item name="android:windowSplashScreenBackground">@android:color/black</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <!-- The same mark, drawn right out to the edge of its canvas. Android fixes how big this
+             box is, so it still cannot match the 50.6% used everywhere else, but filling the box
+             makes the step up to the app's own splash far less of a jump. -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
     </style>
 </resources>

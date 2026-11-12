@@ -509,9 +509,23 @@ public class HostControl {
               access point up, and a scan taken then finds nothing, which is exactly what the
               buyer saw. So the radio is put back to listening, given a moment, and then asked.
             */
-            outShell("cmd wifi stop-softap >/dev/null 2>&1; cmd wifi set-wifi-enabled enabled 2>&1; sleep 3");
-            preScan = outShell("cmd wifi start-scan >/dev/null 2>&1; sleep 6; cmd wifi list-scan-results");
-            Log.i(TAG, "networks in range before going up: " + HotspotServer.parseScan(preScan).size());
+            outShell("cmd wifi stop-softap >/dev/null 2>&1; "
+                   + "cmd wifi set-wifi-enabled enabled 2>&1; "
+                   /* Android hands back scan results only where location is on - a photo frame
+                      has no reason to have it on, and with it off the list comes back empty with
+                      no error to say why. Scanning-always-available is asked for at the same
+                      time, since the radio is otherwise allowed to go quiet. */
+                   + "cmd location set-location-enabled true 2>&1; "
+                   + "settings put secure location_mode 3 2>&1; "
+                   + "cmd wifi set-scan-always-available enabled 2>&1; "
+                   + "sleep 3");
+            preScan = outShell("cmd wifi start-scan 2>&1; sleep 6; cmd wifi list-scan-results");
+            int seen = HotspotServer.parseScan(preScan).size();
+            Log.i(TAG, "networks in range before going up: " + seen);
+            if (seen == 0) {
+                String head = preScan == null ? "" : preScan.trim();
+                Log.w(TAG, "the scan said: " + (head.length() > 400 ? head.substring(0, 400) : head));
+            }
 
             String ssid = frameName();
             String pass = newPassword();

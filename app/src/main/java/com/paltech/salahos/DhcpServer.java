@@ -5,6 +5,13 @@ import android.util.Log;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.StandardProtocolFamily;
+import java.net.StandardSocketOptions;
+import java.nio.ByteBuffer;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,7 +36,9 @@ final class DhcpServer {
     static final String BCAST = NET + ".255";
     private static final int LEASE_SECONDS = 3600;
 
-    private DatagramSocket sock;
+    private DatagramSocket sock;      /* only on the fallback path */
+    private DatagramChannel chan;     /* the real IPv4 socket, when we can have it */
+    private Selector sel;
     private Thread thread;
     private volatile boolean running;
     private final Map<String, Integer> leases = new HashMap<String, Integer>();
@@ -62,24 +71,29 @@ final class DhcpServer {
             */
             fellBack = false;
             try {
-                sock = new DatagramSocket(null);
-                sock.setReuseAddress(true);
                 /*
-                  Bound to the IPv4 wildcard by name, not by port alone. Asked for a port on its
-                  own, Java binds the IPv6 wildcard - and an IPv6 socket only picks up IPv4
-                  traffic when nothing else holds the IPv4 side, which here is exactly what
-                  Android's own server is doing. The frame showed both sockets side by side:
-                  system_server on 0.0.0.0:67 and this app on [::]:67, with every IPv4 request
-                  going to the first of them.
+                  A real IPv4 socket, which java.net cannot give us: every DatagramSocket on
+                  Android is opened as IPv6 and shown as [::]:67 even when bound to 0.0.0.0, and
+                  an IPv6 socket is only handed IPv4 traffic when nothing holds the IPv4 side.
+                  Android's own server holds exactly that, so two builds in a row the app sat on
+                  the wrong side of the stack while every request went to system_server. A
+                  channel opened for the INET family is genuinely AF_INET and sits beside it.
                 */
-                sock.bind(new java.net.InetSocketAddress(InetAddress.getByName("0.0.0.0"), PORT));
-                Log.i(TAG, "sharing port " + PORT + " on IPv4 with whoever else holds it");
+                chan = DatagramChannel.open(StandardProtocolFamily.INET);
+                chan.setOption(StandardSocketOptions.SO_REUSEADDR, Boolean.TRUE);
+                chan.setOption(StandardSocketOptions.SO_BROADCAST, Boolean.TRUE);
+                chan.bind(new InetSocketAddress(PORT));
+                chan.configureBlocking(false);
+                sel = Selector.open();
+                chan.register(sel, SelectionKey.OP_READ);
+                Log.i(TAG, "sharing port " + PORT + " on a real IPv4 socket");
             } catch (Throwable shared) {
                 Log.w(TAG, "could not share port 67 (" + shared + ")");
-                try { if (sock != null) sock.close(); } catch (Throwable ignored) { }
-                sock = null;
+                try { if (sel != null) sel.close(); } catch (Throwable ignored) { }
+                try { if (chan != null) chan.close(); } catch (Throwable ignored) { }
+                sel = null; chan = null;
             }
-            if (sock == null) {
+            if (chan == null) {
                 /*
                   Last resort, and it is a poor one: the firewall can carry port 67 here, but a
                   DHCP request arrives from 0.0.0.0, and once the redirect turns the destination
@@ -91,13 +105,12 @@ final class DhcpServer {
                 sock = new DatagramSocket(ALT);
                 fellBack = true;
             }
-            sock.setBroadcast(true);
-            sock.setSoTimeout(1000);
+            if (sock != null) { sock.setBroadcast(true); sock.setSoTimeout(1000); }
             running = true;
             thread = new Thread(new Runnable() { @Override public void run() { loop(); } }, "salah-dhcp");
             thread.setDaemon(true);
             thread.start();
-            Log.i(TAG, "dhcp listening on " + (fellBack ? ALT : PORT));
+            Log.i(TAG, "dhcp listening on " + (fellBack ? ALT : PORT) + (chan != null ? " (ipv4 channel)" : ""));
         } catch (Throwable t) {
             Log.w(TAG, "dhcp could not start: " + t);
             stop();
@@ -106,8 +119,10 @@ final class DhcpServer {
 
     synchronized void stop() {
         running = false;
+        try { if (sel != null) sel.close(); } catch (Throwable ignored) { }
+        try { if (chan != null) chan.close(); } catch (Throwable ignored) { }
         try { if (sock != null) sock.close(); } catch (Throwable ignored) { }
-        sock = null;
+        sel = null; chan = null; sock = null;
         thread = null;
         leases.clear();
     }
@@ -115,6 +130,7 @@ final class DhcpServer {
     boolean isRunning() { return running; }
 
     private void loop() {
+        if (chan != null) { channelLoop(); return; }
         byte[] buf = new byte[1500];
         while (running) {
             try {
@@ -132,6 +148,31 @@ final class DhcpServer {
                 }
             } catch (java.net.SocketTimeoutException e) {
                 /* nobody asked this second */
+            } catch (Throwable t) {
+                if (running) Log.w(TAG, "dhcp: " + t);
+            }
+        }
+    }
+
+    /** The same conversation over the channel, which is where it normally happens. */
+    private void channelLoop() {
+        ByteBuffer buf = ByteBuffer.allocate(1500);
+        while (running) {
+            try {
+                if (sel.select(1000) == 0) continue;
+                sel.selectedKeys().clear();
+                buf.clear();
+                if (chan.receive(buf) == null) continue;
+                int len = buf.position();
+                byte[] in = new byte[len];
+                buf.flip();
+                buf.get(in);
+                byte[] out = reply(in, len);
+                if (out != null) {
+                    chan.send(ByteBuffer.wrap(out), new InetSocketAddress(InetAddress.getByName(BCAST), 68));
+                }
+            } catch (java.nio.channels.ClosedSelectorException e) {
+                return;
             } catch (Throwable t) {
                 if (running) Log.w(TAG, "dhcp: " + t);
             }

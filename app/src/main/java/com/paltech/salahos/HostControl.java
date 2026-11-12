@@ -173,6 +173,20 @@ public class HostControl {
     public String wifiResult() { return wifiOut; }
 
     /** Runs a command and returns what it printed. */
+    /** Copies a file onto the frame through the same local adb connection the shell uses. */
+    boolean pushFile(File f, String dest) {
+        Dadb d = null;
+        try {
+            d = connect();
+            d.push(f, dest, 420, System.currentTimeMillis());
+            return true;
+        } catch (Throwable t) {
+            return false;
+        } finally {
+            try { if (d != null) d.close(); } catch (Throwable ignored) { }
+        }
+    }
+
     String outShell(String cmd) {
         Dadb d = null;
         try {

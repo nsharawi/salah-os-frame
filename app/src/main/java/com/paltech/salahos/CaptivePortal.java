@@ -2,6 +2,8 @@ package com.paltech.salahos;
 
 import android.util.Log;
 
+import java.util.ArrayList;
+
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -66,7 +68,7 @@ final class CaptivePortal {
         }
 
         running = true;
-        rules("-A");
+        rules(true);
 
         try {
             if (sock == null) throw new java.net.BindException("no port for names");
@@ -85,7 +87,7 @@ final class CaptivePortal {
     }
 
     synchronized void stop() {
-        if (running) { try { rules("-D"); } catch (Throwable ignored) { } }
+        if (running) { try { rules(false); } catch (Throwable ignored) { } }
         running = false;
         try { if (sock != null) sock.close(); } catch (Throwable ignored) { }
         sock = null;
@@ -99,33 +101,54 @@ final class CaptivePortal {
      * them to the ports the app does hold, and makes the DHCP answers look as though they left
      * port 67 — a phone will ignore them otherwise.
      */
-    private void rules(String op) {
+    /**
+     * Ports 53, 67 and 80 belong to root. Where the app could not take one for itself, the frame's
+     * own firewall carries it instead.
+     *
+     * The rules are INSERTED at the top of the chain, not appended to the bottom. This ROM jumps to
+     * an OEM chain as its first rule, and whatever that chain decides, anything appended after it
+     * may never be reached — which is exactly what the frame did: the rules were listed, their
+     * counters stayed at zero, and the phone's address request was never seen by the app at all.
+     * Old copies are removed first, because the app can be restarted without ever getting the
+     * chance to tidy up, and they were piling up one pair per run.
+     */
+    private void rules(boolean add) {
         String in = iface.length() > 0 ? "-i " + iface + " " : "";
         String out = iface.length() > 0 ? "-o " + iface + " " : "";
-        StringBuilder cmd = new StringBuilder();
-        /* A rule is only needed where the app could not take the port itself. */
+        java.util.List<String[]> want = new ArrayList<String[]>();
         if (dnsFellBack) {
-            cmd.append("iptables -t nat ").append(op).append(" PREROUTING ").append(in)
-               .append("-p udp --dport 53 -j REDIRECT --to-ports ").append(DNS_ALT).append(" 2>&1; ");
+            want.add(new String[] { "PREROUTING", in + "-p udp --dport 53 -j REDIRECT --to-ports " + DNS_ALT });
         }
         if (dhcp != null && dhcp.fellBack()) {
-            cmd.append("iptables -t nat ").append(op).append(" PREROUTING ").append(in)
-               .append("-p udp --dport 67 -j REDIRECT --to-ports ").append(DhcpServer.ALT).append(" 2>&1; ");
-            cmd.append("iptables -t nat ").append(op).append(" POSTROUTING ").append(out)
-               .append("-p udp --sport ").append(DhcpServer.ALT)
-               .append(" -j SNAT --to-source ").append(DhcpServer.SELF).append(":67 2>&1; ");
+            want.add(new String[] { "PREROUTING", in + "-p udp --dport 67 -j REDIRECT --to-ports " + DhcpServer.ALT });
+            want.add(new String[] { "POSTROUTING", out + "-p udp --sport " + DhcpServer.ALT
+                                    + " -j SNAT --to-source " + DhcpServer.SELF + ":67" });
         }
         if (web != null && web.fellBack()) {
-            cmd.append("iptables -t nat ").append(op).append(" PREROUTING ").append(in)
-               .append("-p tcp --dport 80 -j REDIRECT --to-ports ").append(HotspotServer.ALT).append(" 2>&1; ");
+            want.add(new String[] { "PREROUTING", in + "-p tcp --dport 80 -j REDIRECT --to-ports " + HotspotServer.ALT });
         }
-        if (cmd.length() == 0) { Log.i(TAG, "every port taken directly; no firewall rules needed"); return; }
+        if (want.isEmpty()) {
+            if (add) Log.i(TAG, "every port taken directly; no firewall rules needed");
+            return;
+        }
+
+        StringBuilder cmd = new StringBuilder();
+        for (String[] r : want) {
+            /* however many copies an earlier run left behind */
+            for (int k = 0; k < 4; k++) {
+                cmd.append("iptables -t nat -D ").append(r[0]).append(' ').append(r[1]).append(" 2>/dev/null; ");
+            }
+            if (add) cmd.append("iptables -t nat -I ").append(r[0]).append(" 1 ").append(r[1]).append(" 2>&1; ");
+        }
         String said = host.outShell(cmd.toString());
-        /* Worth saying out loud: if the firewall refuses these, the phone joins the frame and
-           then sits there, which looks like nothing at all going wrong. */
-        if (said != null && said.trim().length() > 0) Log.w(TAG, "iptables " + op + " said: " + said.trim());
-        if ("-A".equals(op)) {
-            Log.i(TAG, "rules in: " + host.outShell("iptables -t nat -S PREROUTING 2>&1; iptables -t nat -S POSTROUTING 2>&1"));
+        if (said != null && said.trim().length() > 0) Log.w(TAG, "iptables said: " + said.trim());
+        if (add) {
+            Log.i(TAG, "rules in: " + host.outShell(
+                    "iptables -t nat -L PREROUTING -n -v --line-numbers 2>&1; "
+                  + "iptables -t nat -L POSTROUTING -n -v --line-numbers 2>&1"));
+            /* and who already holds the ports we wanted, since that is why we are here at all */
+            Log.i(TAG, "port 67 held by: " + host.outShell(
+                    "netstat -lnup 2>/dev/null | grep ':67 ' ; grep -i ' 0043 ' /proc/net/udp 2>/dev/null").trim());
         }
     }
 

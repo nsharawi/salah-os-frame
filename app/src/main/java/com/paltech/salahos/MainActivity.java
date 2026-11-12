@@ -89,6 +89,8 @@ public class MainActivity extends Activity {
         web.loadUrl(HOME_URL);
         host.selfTest();
         ui.postDelayed(updateTick, 90 * 1000);
+        // Off the critical path: the wallpaper only matters on the next boot, not this one.
+        ui.postDelayed(new Runnable() { @Override public void run() { Wallpaper.applyOnce(MainActivity.this); } }, 12000);
         // Keep technician mode's navigation bar switched on across restarts.
         ui.postDelayed(new Runnable() { @Override public void run() { NavAccess.ensure(MainActivity.this); } }, 8000);
     }

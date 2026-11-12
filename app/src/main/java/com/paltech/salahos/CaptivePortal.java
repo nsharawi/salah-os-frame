@@ -129,7 +129,15 @@ final class CaptivePortal {
             want.add(new String[] { "PREROUTING", in + "-p udp --dport 53 -j REDIRECT --to-ports " + DNS_ALT });
         }
         if (dhcp != null && dhcp.fellBack()) {
-            want.add(new String[] { "PREROUTING", in + "-p udp --dport 67 -j REDIRECT --to-ports " + DhcpServer.ALT });
+            /*
+              DNAT to the broadcast address rather than REDIRECT. REDIRECT rewrites the
+              destination to an ordinary address, and a packet from 0.0.0.0 to an ordinary
+              address is a martian the kernel throws away - which is why the redirect rule
+              counted the phone's requests while nothing ever reached the socket. Sending it to
+              255.255.255.255 on another port keeps the destination a broadcast, which a source
+              of 0.0.0.0 is allowed to talk to.
+            */
+            want.add(new String[] { "PREROUTING", in + "-p udp --dport 67 -j DNAT --to-destination 255.255.255.255:" + DhcpServer.ALT });
             want.add(new String[] { "POSTROUTING", out + "-p udp --sport " + DhcpServer.ALT
                                     + " -j SNAT --to-source " + DhcpServer.SELF + ":67" });
         }

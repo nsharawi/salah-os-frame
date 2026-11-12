@@ -64,8 +64,16 @@ final class DhcpServer {
             try {
                 sock = new DatagramSocket(null);
                 sock.setReuseAddress(true);
-                sock.bind(new java.net.InetSocketAddress(PORT));
-                Log.i(TAG, "sharing port " + PORT + " with whoever else holds it");
+                /*
+                  Bound to the IPv4 wildcard by name, not by port alone. Asked for a port on its
+                  own, Java binds the IPv6 wildcard - and an IPv6 socket only picks up IPv4
+                  traffic when nothing else holds the IPv4 side, which here is exactly what
+                  Android's own server is doing. The frame showed both sockets side by side:
+                  system_server on 0.0.0.0:67 and this app on [::]:67, with every IPv4 request
+                  going to the first of them.
+                */
+                sock.bind(new java.net.InetSocketAddress(InetAddress.getByName("0.0.0.0"), PORT));
+                Log.i(TAG, "sharing port " + PORT + " on IPv4 with whoever else holds it");
             } catch (Throwable shared) {
                 Log.w(TAG, "could not share port 67 (" + shared + ")");
                 try { if (sock != null) sock.close(); } catch (Throwable ignored) { }

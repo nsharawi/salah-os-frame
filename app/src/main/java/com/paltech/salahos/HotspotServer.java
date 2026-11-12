@@ -378,6 +378,10 @@ final class HotspotServer {
             o.put("ssid", joined);
             o.put("note", stateNote);
             o.put("online", act.isOnline());
+            /* Handed over on every answer, not only the last one: the hotspot can disappear from
+               under the phone the moment the frame joins, and a phone that already holds the link
+               can carry on at the site under the same session regardless. */
+            o.put("go", act.pairLink());
         } catch (Throwable ignored) { }
         return o.toString();
     }

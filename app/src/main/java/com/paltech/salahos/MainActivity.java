@@ -34,8 +34,12 @@ public class MainActivity extends Activity {
         String q = "";
         if (host.lang().length() > 0) q = "?lang=" + host.lang();
         if (host.netDone()) q = q.length() > 0 ? q + "&net=1" : "?net=1";
+        if (handoff) q = q + (q.length() > 0 ? "&" : "?") + "pair=" + host.pairCode();
         return HOME_URL + q;
     }
+
+    /** Where the phone goes to carry on, once it is off the frame's hotspot and back on a network. */
+    String pairLink() { return HOME_URL + "setup#" + host.pairCode(); }
     private static final String TECH_URL = "file:///android_asset/tech.html";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -60,6 +64,8 @@ public class MainActivity extends Activity {
        no-internet page was on screen, which silently stopped the retries and made the Wi-Fi
        button on that page do nothing. */
     private boolean loadFailed;
+    /** Set while the site is being loaded straight after a phone put this frame on Wi-Fi. */
+    private boolean handoff = false;
     
     private final Runnable retry = new Runnable() {
         @Override public void run() {
@@ -134,7 +140,10 @@ public class MainActivity extends Activity {
                 offline = false;
                 /* The frame is on the network. The phone is still watching the setup page over
                    the hotspot, so it stays up a little longer to show that it worked. */
-                if (host.hotspotUp()) { ui.removeCallbacks(dropHotspot); ui.postDelayed(dropHotspot, 20000); }
+                if (host.hotspotUp()) { ui.removeCallbacks(dropHotspot); ui.postDelayed(dropHotspot, 8000); }
+                /* The site has the code now and has opened the session with it; a reload later
+                   on is a different occasion and gets a code of its own. */
+                if (handoff) { handoff = false; host.pairUsed(); }
             }
             hideSplash();
         }
@@ -210,6 +219,7 @@ public class MainActivity extends Activity {
     /** The phone sent a network and the frame joined it: try the site again straight away. */
     void onHotspotJoined() {
         host.markNetDone();
+        handoff = true;
         ui.post(new Runnable() {
             @Override public void run() {
                 loadFailed = false;
@@ -218,8 +228,12 @@ public class MainActivity extends Activity {
         });
         /* If the site still will not load, the hotspot has done its job either way and must not
            be left running on a wall-mounted frame. */
+        /* The phone is holding the link by now and has nothing left to ask the frame. Every
+           second the hotspot stays up is a second the phone is stuck on a network with no way
+           out, so it comes down promptly - and in any case must never be left running on a
+           wall-mounted frame. */
         ui.removeCallbacks(dropHotspot);
-        ui.postDelayed(dropHotspot, 120000);
+        ui.postDelayed(dropHotspot, 8000);
     }
 
     /** Shows the technician page (PIN pad, then the app grid) on top of the display. */

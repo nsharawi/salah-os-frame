@@ -448,6 +448,32 @@ public class HostControl {
      */
     boolean netDone() { return prefs.getBoolean("net_done", false); }
 
+    /**
+     * The code for the setup session this frame and the buyer's phone will share.
+     *
+     * Chosen here, on the frame, while it still has no internet at all - which is the whole point.
+     * The phone is handed it over the hotspot, before the hotspot comes down, and the site opens
+     * the session under the same code once the frame is online. So the phone carries straight on
+     * from where it was, and the buyer never scans a second code. Twenty-four characters from an
+     * alphabet without look-alikes, the same shape the site uses, so neither end has to care which
+     * of them picked it.
+     */
+    String pairCode() {
+        String c = prefs.getString("pair_code", "");
+        if (c.length() == 24) return c;
+        String a = "abcdefghjkmnpqrstuvwxyz23456789";
+        byte[] b = new byte[24];
+        new java.security.SecureRandom().nextBytes(b);
+        StringBuilder sb = new StringBuilder(24);
+        for (int i = 0; i < b.length; i++) sb.append(a.charAt((b[i] & 0xFF) % a.length()));
+        c = sb.toString();
+        prefs.edit().putString("pair_code", c).apply();
+        return c;
+    }
+
+    /** Forgets it, so the next first run is a session of its own. */
+    void pairUsed() { prefs.edit().remove("pair_code").apply(); }
+
     void markNetDone() { prefs.edit().putBoolean("net_done", true).apply(); }
 
     String lang() { return prefs.getString("ui_lang", ""); }

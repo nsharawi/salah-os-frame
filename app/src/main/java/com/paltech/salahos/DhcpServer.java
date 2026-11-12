@@ -69,44 +69,20 @@ final class DhcpServer {
               is exactly what a DHCP request is. So this does not take the port from anyone; it
               listens beside them.
             */
-            fellBack = false;
-            try {
-                /*
-                  A real IPv4 socket, which java.net cannot give us: every DatagramSocket on
-                  Android is opened as IPv6 and shown as [::]:67 even when bound to 0.0.0.0, and
-                  an IPv6 socket is only handed IPv4 traffic when nothing holds the IPv4 side.
-                  Android's own server holds exactly that, so two builds in a row the app sat on
-                  the wrong side of the stack while every request went to system_server. A
-                  channel opened for the INET family is genuinely AF_INET and sits beside it.
-                */
-                chan = DatagramChannel.open(StandardProtocolFamily.INET);
-                chan.setOption(StandardSocketOptions.SO_REUSEADDR, Boolean.TRUE);
-                chan.setOption(StandardSocketOptions.SO_BROADCAST, Boolean.TRUE);
-                /* By address, not by port alone: a bare port gives the IPv6 wildcard, which an
-                   INET-family channel refuses outright. */
-                chan.bind(new InetSocketAddress(InetAddress.getByName("0.0.0.0"), PORT));
-                chan.configureBlocking(false);
-                sel = Selector.open();
-                chan.register(sel, SelectionKey.OP_READ);
-                Log.i(TAG, "sharing port " + PORT + " on a real IPv4 socket");
-            } catch (Throwable shared) {
-                Log.w(TAG, "could not share port 67 (" + shared + ")");
-                try { if (sel != null) sel.close(); } catch (Throwable ignored) { }
-                try { if (chan != null) chan.close(); } catch (Throwable ignored) { }
-                sel = null; chan = null;
-            }
-            if (chan == null) {
-                /*
-                  Last resort, and it is a poor one: the firewall can carry port 67 here, but a
-                  DHCP request arrives from 0.0.0.0, and once the redirect turns the destination
-                  into an ordinary address the kernel throws the packet away as a martian - a
-                  source of 0.0.0.0 is only legal to a broadcast address. Watched on the frame:
-                  the redirect rule counted five packets and nothing ever reached the socket.
-                */
-                Log.w(TAG, "falling back to " + ALT + "; a redirect rarely survives a 0.0.0.0 source");
-                sock = new DatagramSocket(ALT);
-                fellBack = true;
-            }
+            /*
+              Always on the high port, with the firewall carrying port 67 to it.
+
+              Holding 67 outright would be tidier and it can be done - a channel opened for the
+              INET family binds alongside the server Android keeps there. But whether the kernel
+              then hands a broadcast datagram to both sockets or only to the first is not
+              something to stake first-run setup on, and taking it cost a build: the app bound 67
+              and an earlier build's redirect, still in the chain, went on sending the phone's
+              requests to a port nobody was listening on. The arrangement below is the one that
+              was watched working on the frame - the phone asked, was offered 192.168.49.20, and
+              took it.
+            */
+            sock = new DatagramSocket(ALT);
+            fellBack = true;
             if (sock != null) { sock.setBroadcast(true); sock.setSoTimeout(1000); }
             running = true;
             thread = new Thread(new Runnable() { @Override public void run() { loop(); } }, "salah-dhcp");

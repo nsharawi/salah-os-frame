@@ -144,28 +144,39 @@ final class CaptivePortal {
         if (web != null && web.fellBack()) {
             want.add(new String[] { "PREROUTING", in + "-p tcp --dport 80 -j REDIRECT --to-ports " + HotspotServer.ALT });
         }
-        if (want.isEmpty()) {
-            if (add) Log.i(TAG, "every port taken directly; no firewall rules needed");
-            return;
-        }
 
+        /*
+          Every rule this app has ever installed is removed first, not only the ones it wants
+          now. A build that managed to hold port 67 by itself left an earlier build's redirect
+          sitting in the chain, and that redirect went on sending the phone's requests to a port
+          nobody was listening on any more. From the outside it looked like a brand new fault.
+        */
+        String[][] known = {
+            { "PREROUTING",  in + "-p udp --dport 53 -j REDIRECT --to-ports " + DNS_ALT },
+            { "PREROUTING",  in + "-p udp --dport 67 -j DNAT --to-destination 255.255.255.255:" + DhcpServer.ALT },
+            { "PREROUTING",  in + "-p udp --dport 67 -j REDIRECT --to-ports " + DhcpServer.ALT },
+            { "POSTROUTING", out + "-p udp --sport " + DhcpServer.ALT + " -j SNAT --to-source " + DhcpServer.SELF + ":67" },
+            { "PREROUTING",  in + "-p tcp --dport 80 -j REDIRECT --to-ports " + HotspotServer.ALT },
+            { "filter:INPUT", "-i " + iface + " -j ACCEPT" }
+        };
         StringBuilder cmd = new StringBuilder();
-        /* an earlier build sent port 67 to a redirect, which cannot work and only gets in the way */
-        for (int k = 0; k < 6; k++) {
-            cmd.append("iptables -t nat -D PREROUTING ").append(in)
-               .append("-p udp --dport 67 -j REDIRECT --to-ports ").append(DhcpServer.ALT).append(" 2>/dev/null; ");
-        }
-        for (String[] r : want) {
+        for (String[] r : known) {
             String table = "nat", chain = r[0];
             int colon = chain.indexOf(':');
             if (colon > 0) { table = chain.substring(0, colon); chain = chain.substring(colon + 1); }
-            /* however many copies an earlier run left behind */
             for (int k = 0; k < 6; k++) {
                 cmd.append("iptables -t ").append(table).append(" -D ").append(chain).append(' ')
                    .append(r[1]).append(" 2>/dev/null; ");
             }
-            if (add) cmd.append("iptables -t ").append(table).append(" -I ").append(chain).append(" 1 ")
-                        .append(r[1]).append(" 2>&1; ");
+        }
+        if (add) {
+            for (String[] r : want) {
+                String table = "nat", chain = r[0];
+                int colon = chain.indexOf(':');
+                if (colon > 0) { table = chain.substring(0, colon); chain = chain.substring(colon + 1); }
+                cmd.append("iptables -t ").append(table).append(" -I ").append(chain).append(" 1 ")
+                   .append(r[1]).append(" 2>&1; ");
+            }
         }
         String said = host.outShell(cmd.toString());
         if (said != null && said.trim().length() > 0) Log.w(TAG, "iptables said: " + said.trim());

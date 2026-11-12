@@ -46,3 +46,19 @@ jobs:
           git add salah-os.apk version.json
           git commit -q -m "Build ${GITHUB_SHA::7}"
           git push -f origin apk
+
+      - name: Hold a branch build where it can be fetched
+        # Work branches land on apk-test instead. No frame reads that branch; it exists so one
+        # frame can be loaded by hand from the assembly tool before the change reaches main.
+        if: github.ref != 'refs/heads/main'
+        run: |
+          mkdir -p /tmp/out && cp app/build/outputs/apk/debug/app-debug.apk /tmp/out/salah-os.apk
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git checkout --orphan apk-test
+          git rm -rf . -q
+          cp /tmp/out/salah-os.apk .
+          printf '{"versionCode":%s,"versionName":"1.0.%s","branch":"%s","sha256":"%s"}\n' $((100 + GITHUB_RUN_NUMBER)) $GITHUB_RUN_NUMBER "$GITHUB_REF_NAME" $(sha256sum salah-os.apk | cut -d' ' -f1) > version.json
+          git add salah-os.apk version.json
+          git commit -q -m "Branch build $GITHUB_REF_NAME ${GITHUB_SHA::7}"
+          git push -f origin apk-test

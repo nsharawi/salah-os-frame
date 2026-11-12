@@ -53,6 +53,17 @@ public class HostControl {
     private volatile String apSsid = "";
     private volatile String apPass = "";
     private volatile String apUrl = "";
+    private volatile String preScan = "";
+
+    /**
+     * What the frame could see before it became an access point.
+     *
+     * One radio: the moment it is broadcasting a network of its own it can no longer look for
+     * anyone else's, so asking it to scan while the buyer is standing in the setup page returns
+     * nothing at all. The list is taken a few seconds earlier, while the frame is still only
+     * listening, and that is what the phone is shown.
+     */
+    String preScan() { return preScan; }
 
     HostControl(MainActivity a) {
         act = a;
@@ -491,6 +502,9 @@ public class HostControl {
             try { ver = act.getPackageManager().getPackageInfo(act.getPackageName(), 0).versionName; }
             catch (Throwable ignored) { }
             Log.i(TAG, "Salah OS " + ver + " bringing up the hotspot");
+
+            /* Look around first - see preScan(). This is the only chance to. */
+            preScan = outShell("cmd wifi start-scan >/dev/null 2>&1; sleep 5; cmd wifi list-scan-results");
 
             String ssid = frameName();
             String pass = newPassword();

@@ -168,14 +168,17 @@ final class HotspotServer {
         if ("/".equals(path) || "/index.html".equals(path)) { sendAsset(out, "wifi-setup.html"); return; }
         if ("/qr.js".equals(path)) { sendAsset(out, "qr.js"); return; }
 
-        /* Anything else — including the connectivity check a phone makes the moment it joins —
-           is pointed at the setup page. On some phones that check is what opens it by itself. */
-        byte[] none = new byte[0];
-        String headers = "HTTP/1.1 302 Found\r\nLocation: http://" + DhcpServer.SELF
-                + (port == 80 ? "" : ":" + port) + "/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
-        out.write(headers.getBytes("UTF-8"));
-        out.write(none);
-        out.flush();
+        /*
+          Anything else - above all the connectivity check a phone makes the moment it joins - is
+          answered with the setup page itself rather than a redirect to it.
+
+          Both say "this is a sign-in network". The difference is what the phone has in hand when
+          it decides what to do: given a page, some phones put it straight on screen, while a
+          redirect more often just raises the notification and waits to be tapped. iPhones open
+          it by themselves either way; on Android the notification is the normal path and the tap
+          is the same one hotel Wi-Fi asks for.
+        */
+        sendAsset(out, "wifi-setup.html");
     }
 
     private void send(OutputStream out, int code, String type, String payload) throws IOException {
@@ -209,9 +212,18 @@ final class HotspotServer {
 
     /** The networks the frame can see. The hotspot runs on its own interface, so this still works. */
     private String networks() {
-        state = "scanning";
-        String raw = host.outShell("cmd wifi start-scan >/dev/null 2>&1; sleep 4; cmd wifi list-scan-results");
-        if (state.equals("scanning")) state = "idle";
+        /*
+          What the frame saw just before it raised its own network. It cannot look while it is
+          broadcasting - one radio - so a scan asked for now comes back empty, which is what the
+          buyer saw: "No networks found" on a phone standing next to a house full of them.
+          A live scan is still attempted, in case a frame some day has a radio to spare.
+        */
+        String raw = host.preScan();
+        if (parseScan(raw == null ? "" : raw).isEmpty()) {
+            state = "scanning";
+            raw = host.outShell("cmd wifi start-scan >/dev/null 2>&1; sleep 4; cmd wifi list-scan-results");
+            if (state.equals("scanning")) state = "idle";
+        }
         JSONArray arr = new JSONArray();
         try {
             for (Map.Entry<String, int[]> e : parseScan(raw).entrySet()) {

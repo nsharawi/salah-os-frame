@@ -201,7 +201,9 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     setInterval(tick, 1000);
   }
 
-  var LIVE = { scanning: 'Looking for networks…', joining: 'Joining your network…',
+  /* Nothing is said about looking for networks: the frame cannot look while it is broadcasting,
+     and a line in the corner saying it is doing something it is not helps nobody. */
+  var LIVE = { joining: 'Joining your network…',
                connected: 'Connected. Starting Salah OS…', failed: 'That did not work. Try again on your phone.' };
 
   function tick() {

@@ -503,8 +503,15 @@ public class HostControl {
             catch (Throwable ignored) { }
             Log.i(TAG, "Salah OS " + ver + " bringing up the hotspot");
 
-            /* Look around first - see preScan(). This is the only chance to. */
-            preScan = outShell("cmd wifi start-scan >/dev/null 2>&1; sleep 5; cmd wifi list-scan-results");
+            /*
+              Look around first - see preScan(). This is the only chance to, and it only works if
+              the frame is not already broadcasting: restarting the app leaves the previous run's
+              access point up, and a scan taken then finds nothing, which is exactly what the
+              buyer saw. So the radio is put back to listening, given a moment, and then asked.
+            */
+            outShell("cmd wifi stop-softap >/dev/null 2>&1; cmd wifi set-wifi-enabled enabled 2>&1; sleep 3");
+            preScan = outShell("cmd wifi start-scan >/dev/null 2>&1; sleep 6; cmd wifi list-scan-results");
+            Log.i(TAG, "networks in range before going up: " + HotspotServer.parseScan(preScan).size());
 
             String ssid = frameName();
             String pass = newPassword();

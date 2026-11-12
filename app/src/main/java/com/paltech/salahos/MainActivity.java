@@ -27,6 +27,12 @@ public class MainActivity extends Activity {
        Any longer is dead time the frame spends showing a logo it no longer needs to. */
     private static final long MIN_SPLASH_MS = 400;
     private static final long RETRY_MS = 15000;
+
+    /** The site, told which language the frame was set to, so the wizard does not ask again. */
+    private String homeUrl() {
+        String l = host != null ? host.lang() : "";
+        return l.length() > 0 ? HOME_URL + "?lang=" + l : HOME_URL;
+    }
     private static final String TECH_URL = "file:///android_asset/tech.html";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -57,7 +63,7 @@ public class MainActivity extends Activity {
             /* While the hotspot is up the buyer is in the middle of setting Wi-Fi up on their
                phone, and reloading underneath them would throw that away. The phone's own answer
                brings the site back instead, through onHotspotJoined(). */
-            if (offline && web != null && !host.hotspotUp()) { loadFailed = false; web.loadUrl(HOME_URL); }
+            if (offline && web != null && !host.hotspotUp()) { loadFailed = false; web.loadUrl(homeUrl()); }
         }
     };
 
@@ -97,7 +103,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         setContentView(root);
-        web.loadUrl(HOME_URL);
+        web.loadUrl(homeUrl());
         host.selfTest();
         ui.postDelayed(updateTick, 90 * 1000);
         // Off the critical path: the wallpaper only matters on the next boot, not this one.
@@ -203,7 +209,7 @@ public class MainActivity extends Activity {
         ui.post(new Runnable() {
             @Override public void run() {
                 loadFailed = false;
-                if (web != null) web.loadUrl(HOME_URL);
+                if (web != null) web.loadUrl(homeUrl());
             }
         });
         /* If the site still will not load, the hotspot has done its job either way and must not

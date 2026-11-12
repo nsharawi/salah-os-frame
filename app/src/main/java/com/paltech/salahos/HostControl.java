@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.media.AudioManager;
 import android.view.WindowManager;
+import android.util.Log;
 import android.webkit.JavascriptInterface;
 
 import org.json.JSONObject;
@@ -27,6 +28,7 @@ import dadb.Dadb;
  * service on 127.0.0.1:5555, using a key made on this device (see frame-setup-control.bat).
  */
 public class HostControl {
+    private static final String TAG = "SalahHost";
     private static final int ADB_PORT = 5555;
 
     private final MainActivity act;
@@ -44,6 +46,8 @@ public class HostControl {
     volatile boolean local;
 
     private HotspotServer server;
+    private CaptivePortal portal;
+    private DhcpServer dhcp;
     private volatile String netPhase = "";
     private volatile String netWhy = "";
     private volatile String apSsid = "";
@@ -405,6 +409,23 @@ public class HostControl {
         }
     }
 
+    /**
+     * The language, chosen on the very first screen the frame ever shows and then never asked for
+     * again — not on the no-network screen, not on the phone, and not by the wizard once the site
+     * loads, which is handed the answer in its address.
+     */
+    @JavascriptInterface
+    public void setLang(String x) {
+        if (!local && !trusted) return;
+        if (!"en".equals(x) && !"ar".equals(x)) return;
+        prefs.edit().putString("ui_lang", x).apply();
+    }
+
+    @JavascriptInterface
+    public String getLang() { return lang(); }
+
+    String lang() { return prefs.getString("ui_lang", ""); }
+
     // ---- first run: no network yet ---------------------------------------------------------
 
     /**
@@ -467,41 +488,69 @@ public class HostControl {
 
             String ssid = frameName();
             String pass = newPassword();
+
+            /*
+              No band argument. Asked for 2.4 GHz explicitly this ROM brings the access point up
+              and then reports "Soft AP failed to start" in the same breath; left alone it picks a
+              2.4 GHz channel itself and says only that it worked. Watched on the frame on
+              12 November 2026. The printed word is not trusted either way — what counts is
+              whether an access point interface appears.
+            */
             String out = outShell("cmd wifi stop-softap >/dev/null 2>&1; sleep 1; "
-                    + "cmd wifi start-softap " + quote(ssid) + " wpa2 " + quote(pass) + " -b 2");
-            if (looksFailed(out)) {
-                /* Older builds of this command take no band argument. */
-                out = outShell("cmd wifi start-softap " + quote(ssid) + " wpa2 " + quote(pass));
+                    + "cmd wifi start-softap " + quote(ssid) + " wpa2 " + quote(pass));
+            String iface = apInterface(out);
+            for (int i = 0; i < 16 && iface == null; i++) {
+                try { Thread.sleep(500); } catch (InterruptedException ignored) { }
+                iface = apInterface(outShell("dumpsys wifi 2>/dev/null | grep -m 2 mApInstanceIdentifier"));
             }
-            if (looksFailed(out)) {
-                netWhy = "the frame refused to start its hotspot";
+            if (iface == null) {
+                netWhy = "the frame would not raise its hotspot";
                 netPhase = "error";
+                Log.w(TAG, "start-softap said: " + out);
                 return;
             }
 
-            /* The access point takes a moment to come up and be given its address. */
-            String ip = null;
-            for (int i = 0; i < 20 && ip == null; i++) {
-                try { Thread.sleep(500); } catch (InterruptedException ignored) { }
-                ip = HotspotServer.apAddress();
-            }
-            if (ip == null) ip = "192.168.43.1";
+            /*
+              And now the part Android leaves undone. The shell command raises the radio only: it
+              says itself that it does not start tethering, and the interface comes up with no
+              address on it and nothing handing any out. So the frame gives itself the address at
+              the top of the subnet and answers DHCP, DNS and HTTP on it by itself.
+            */
+            outShell("ip addr flush dev " + iface + " 2>&1; "
+                   + "ip addr add " + DhcpServer.SELF + "/24 dev " + iface + " 2>&1; "
+                   + "ip link set " + iface + " up 2>&1");
 
+            if (dhcp == null) dhcp = new DhcpServer();
+            dhcp.start();
+            if (portal == null) portal = new CaptivePortal(this);
+            portal.start(DhcpServer.SELF, iface);
             if (server == null) server = new HotspotServer(act, this);
             server.start();
 
             apSsid = ssid;
             apPass = pass;
-            apUrl = "http://" + ip + ":" + HotspotServer.PORT + "/";
+            apUrl = "http://" + DhcpServer.SELF + ":" + HotspotServer.PORT + "/";
             netPhase = "ready";
+            Log.i(TAG, "hotspot " + ssid + " up on " + iface);
         } catch (Throwable t) {
             netWhy = t.getClass().getSimpleName();
             netPhase = "error";
+            Log.w(TAG, "hotspot: " + t);
         }
+    }
+
+    /** The access point's interface name, which the frame prints as mApInstanceIdentifier. */
+    private static String apInterface(String out) {
+        if (out == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("mApInstanceIdentifier=\\s*(\\w+)").matcher(out);
+        return m.find() ? m.group(1) : null;
     }
 
     private void tearDownHotspot() {
         try { if (server != null) server.stop(); } catch (Throwable ignored) { }
+        try { if (portal != null) portal.stop(); } catch (Throwable ignored) { }
+        try { if (dhcp != null) dhcp.stop(); } catch (Throwable ignored) { }
         apSsid = "";
         apPass = "";
         apUrl = "";

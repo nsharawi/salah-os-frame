@@ -1,0 +1,138 @@
+package com.paltech.salahos;
+
+import android.util.Log;
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+
+/**
+ * Makes the frame's hotspot behave like hotel Wi-Fi, so that one QR code does the whole job.
+ *
+ * The buyer scans a single code and their phone joins the frame. A phone that has just joined a
+ * network immediately checks whether it leads anywhere: Android asks for
+ * http://connectivitycheck.gstatic.com/generate_204 and iOS for http://captive.apple.com. If that
+ * check comes back as anything other than the expected answer, the phone decides it is behind a
+ * sign-in page and opens it by itself. That is the whole trick — the second QR code becomes the
+ * phone's own doing.
+ *
+ * Two pieces make it work. Every name the phone looks up has to resolve to the frame, which is
+ * what the small DNS responder below does. And the phone asks on port 80, which an ordinary app
+ * may not listen on, so the frame's own firewall sends port 80 and port 53 to the ports this app
+ * does hold. Both are undone when the hotspot stops.
+ */
+final class CaptivePortal {
+    private static final String TAG = "SalahHotspot";
+    private static final int DNS_PORT = 5353;   /* 53 is privileged; the firewall rule bridges it */
+
+    private final HostControl host;
+    private DatagramSocket sock;
+    private Thread thread;
+    private volatile boolean running;
+    private String iface = "";
+    private byte[] answer = new byte[4];
+
+    CaptivePortal(HostControl h) { host = h; }
+
+    /** @param ip the frame's own address on the hotspot, which every lookup will be answered with. */
+    synchronized void start(String ip, String ifaceName) {
+        if (running) return;
+        iface = ifaceName == null ? "" : ifaceName;
+        try {
+            String[] p = ip.split("\\.");
+            for (int i = 0; i < 4; i++) answer[i] = (byte) Integer.parseInt(p[i]);
+            sock = new DatagramSocket(DNS_PORT);
+            sock.setSoTimeout(1000);
+            running = true;
+            thread = new Thread(new Runnable() { @Override public void run() { loop(); } }, "salah-dns");
+            thread.setDaemon(true);
+            thread.start();
+            rules("-A");
+            Log.i(TAG, "captive portal up on " + ip + " via " + iface);
+        } catch (Throwable t) {
+            Log.w(TAG, "captive portal could not start: " + t);
+            stop();
+        }
+    }
+
+    synchronized void stop() {
+        if (running) { try { rules("-D"); } catch (Throwable ignored) { } }
+        running = false;
+        try { if (sock != null) sock.close(); } catch (Throwable ignored) { }
+        sock = null;
+        thread = null;
+    }
+
+    boolean isRunning() { return running; }
+
+    /**
+     * Ports 53, 67 and 80 belong to root, which this app is not, so the frame's own firewall sends
+     * them to the ports the app does hold, and makes the DHCP answers look as though they left
+     * port 67 — a phone will ignore them otherwise.
+     */
+    private void rules(String op) {
+        String in = iface.length() > 0 ? "-i " + iface + " " : "";
+        String out = iface.length() > 0 ? "-o " + iface + " " : "";
+        host.outShell(
+            "iptables -t nat " + op + " PREROUTING " + in + "-p udp --dport 53 -j REDIRECT --to-ports " + DNS_PORT + " 2>&1; " +
+            "iptables -t nat " + op + " PREROUTING " + in + "-p udp --dport 67 -j REDIRECT --to-ports " + DhcpServer.PORT + " 2>&1; " +
+            "iptables -t nat " + op + " PREROUTING " + in + "-p tcp --dport 80 -j REDIRECT --to-ports " + HotspotServer.PORT + " 2>&1; " +
+            "iptables -t nat " + op + " POSTROUTING " + out + "-p udp --sport " + DhcpServer.PORT +
+                " -j SNAT --to-source " + DhcpServer.SELF + ":67 2>&1");
+    }
+
+    private void loop() {
+        byte[] buf = new byte[512];
+        while (running) {
+            try {
+                DatagramPacket in = new DatagramPacket(buf, buf.length);
+                sock.receive(in);
+                byte[] out = reply(in.getData(), in.getLength());
+                if (out != null) sock.send(new DatagramPacket(out, out.length, in.getAddress(), in.getPort()));
+            } catch (java.net.SocketTimeoutException e) {
+                /* nothing asked this second */
+            } catch (Throwable t) {
+                if (running) Log.w(TAG, "dns: " + t);
+            }
+        }
+    }
+
+    /**
+     * Answers an A question with the frame's address, and anything else with "no such name" so the
+     * phone stops asking. Only one question per message is handled, which is all any phone sends.
+     */
+    private byte[] reply(byte[] q, int len) {
+        if (len < 18) return null;
+        if ((q[2] & 0x80) != 0) return null;                 /* already an answer */
+        if (((q[4] & 255) << 8 | (q[5] & 255)) != 1) return null;   /* exactly one question */
+
+        int i = 12;
+        while (i < len && q[i] != 0) {
+            int l = q[i] & 255;
+            if (l > 63 || i + l + 1 > len) return null;      /* compressed or malformed */
+            i += l + 1;
+        }
+        if (i + 5 > len) return null;
+        int end = i + 5;                                     /* past the root label, type and class */
+        int type = (q[i + 1] & 255) << 8 | (q[i + 2] & 255);
+
+        boolean a = type == 1;
+        byte[] r = new byte[a ? end + 16 : end];
+        System.arraycopy(q, 0, r, 0, end);
+        r[2] = (byte) 0x81;                                  /* answer, recursion desired */
+        r[3] = (byte) (a ? 0x80 : 0x83);                     /* ok, or "no such name" */
+        r[4] = 0; r[5] = 1;                                  /* one question */
+        r[6] = 0; r[7] = (byte) (a ? 1 : 0);                 /* one answer, or none */
+        r[8] = 0; r[9] = 0; r[10] = 0; r[11] = 0;
+        if (!a) return r;
+
+        int p = end;
+        r[p++] = (byte) 0xc0; r[p++] = 0x0c;                 /* the name, pointing back at the question */
+        r[p++] = 0; r[p++] = 1;                              /* type A */
+        r[p++] = 0; r[p++] = 1;                              /* class IN */
+        r[p++] = 0; r[p++] = 0; r[p++] = 0; r[p++] = 30;     /* half a minute */
+        r[p++] = 0; r[p++] = 4;
+        System.arraycopy(answer, 0, r, p, 4);
+        return r;
+    }
+}

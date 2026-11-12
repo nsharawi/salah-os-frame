@@ -64,10 +64,20 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
 .qr{width:300px;height:300px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
 .qr svg{width:100%;height:100%;display:block}
 .name{margin:20px 0 0;font-size:24px;line-height:1.2;font-weight:600;color:var(--p);letter-spacing:.5px;unicode-bidi:plaintext}
-.card{background:var(--row);border-radius:28px;padding:28px 32px;max-width:560px}
+/* Material's indeterminate linear indicator: a track with two runs crossing it, which says
+   "working" without a sentence explaining that it is working. */
+.lin{position:relative;height:4px;border-radius:2px;background:var(--line);overflow:hidden;width:100%;max-width:560px}
+.lin:before,.lin:after{content:"";position:absolute;inset-block:0;background:var(--p);border-radius:2px}
+.lin:before{animation:l1 2s cubic-bezier(.65,.815,.735,.395) infinite}
+.lin:after{animation:l2 2s cubic-bezier(.165,.84,.44,1) infinite;animation-delay:1.15s}
+@keyframes l1{0%{inset-inline-start:-35%;inset-inline-end:100%}
+             60%{inset-inline-start:100%;inset-inline-end:-90%}
+            100%{inset-inline-start:100%;inset-inline-end:-90%}}
+@keyframes l2{0%{inset-inline-start:-200%;inset-inline-end:100%}
+             60%{inset-inline-start:107%;inset-inline-end:-8%}
+            100%{inset-inline-start:107%;inset-inline-end:-8%}}
+@media (prefers-reduced-motion:reduce){.lin:before{animation:none;inset-inline:0}.lin:after{display:none}}
 .s{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--dim)}
-.d{width:8px;height:8px;border-radius:50%;background:var(--p);animation:pls 1.6s ease-in-out infinite;flex:none}
-@keyframes pls{50%{opacity:.25}}
 .why{margin:16px 0 0;font-size:14px;line-height:1.5;color:#8C1D18}
 @media (prefers-reduced-motion:reduce){.d{animation:none}*{transition:none !important}}
 @media (max-width:900px),(max-height:560px){
@@ -109,9 +119,7 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     <p class="p" id="wp"></p>
     <p class="why" id="why" hidden></p>
   </div>
-  <div class="wzr"><div class="wzi"><div class="card">
-    <div class="s"><span class="d"></span><span id="ws"></span></div>
-  </div></div></div>
+  <div class="wzr"><div class="wzi"><div class="lin" role="progressbar" aria-label="Working"></div></div></div>
   <div class="wzf"><button class="btn ghost" id="wifi" type="button"></button></div>
 </section>
 
@@ -132,6 +140,8 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
   'use strict';
   var AR = {
     'Connect to Wi-Fi': 'اتصل بشبكة الواي فاي',
+    'Just a moment': 'لحظة من فضلك',
+    'Getting this frame ready.': 'جارٍ تجهيز الإطار.',
     'Salah OS needs the internet to load prayer times. It starts by itself once this frame is online.':
       'يحتاج Salah OS إلى الإنترنت لتحميل أوقات الصلاة. سيبدأ تلقائيًا بمجرد اتصال الإطار.',
     'Wi-Fi settings': 'إعدادات الواي فاي',
@@ -174,13 +184,13 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
   function begin() {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    id('wh').textContent = t('Connect to Wi-Fi');
-    id('wp').textContent = t('Salah OS needs the internet to load prayer times. It starts by itself once this frame is online.');
+    /* Until the frame knows which of the two it is, it says only that it is working. */
+    id('wh').textContent = t('Just a moment');
+    id('wp').textContent = t('Getting this frame ready.');
     id('hh').textContent = t('Set up from your phone');
-    id('ws').textContent = t('Trying to connect…');
     var b = id('wifi');
     if (F && F.openWifi) { b.textContent = t('Wi-Fi settings'); b.onclick = function () { F.openWifi(); }; }
-    else b.hidden = true;
+    b.hidden = true;   /* only offered once the frame knows it is stuck, not while it is starting */
     screen('wait');
     if (!F || !F.netBegin) return;   /* an older frame: the plain page is all there is */
     F.netBegin();
@@ -217,11 +227,20 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     if (d.phase === 'error') {
       why.hidden = false;
       why.textContent = t('Phone setup is not available on this frame.') + ' ' + (d.why || '');
-      id('ws').textContent = t('Trying to connect…');
-    } else if (d.phase === 'working') {
-      id('ws').textContent = t('Starting phone setup…');
+      id('wh').textContent = t('Connect to Wi-Fi');
+      id('wp').textContent = t('Salah OS needs the internet to load prayer times. It starts by itself once this frame is online.');
+      id('wifi').hidden = !(F && F.openWifi);
+    } else if (d.phase === 'retry') {
+      /* this frame knows a network and simply cannot reach it */
+      why.hidden = true;
+      id('wh').textContent = t('Connect to Wi-Fi');
+      id('wp').textContent = t('Salah OS needs the internet to load prayer times. It starts by itself once this frame is online.');
+      id('wifi').hidden = !(F && F.openWifi);
     } else {
-      id('ws').textContent = t('Trying to connect…');
+      why.hidden = true;
+      id('wifi').hidden = true;
+      id('wh').textContent = t('Just a moment');
+      id('wp').textContent = t('Getting this frame ready.');
     }
   }
 })();

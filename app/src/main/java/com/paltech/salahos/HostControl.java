@@ -2,6 +2,7 @@ package com.paltech.salahos;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.SystemClock;
 import android.media.AudioManager;
 import android.view.WindowManager;
 import android.util.Log;
@@ -54,6 +55,8 @@ public class HostControl {
     private volatile String apPass = "";
     private volatile String apUrl = "";
     private volatile String preScan = "";
+    private volatile long preScanAt = 0;
+    private final Object radio = new Object();   /* one thread at a time may touch the Wi-Fi radio */
 
     /**
      * What the frame could see before it became an access point.
@@ -471,6 +474,64 @@ public class HostControl {
         }, "salah-net").start();
     }
 
+    /**
+     * Gets the radio ready and takes the list of networks while the buyer is still choosing a
+     * language.
+     *
+     * This used to happen after they pressed Get started, and it is the slowest part of the whole
+     * thing: the frame has one radio, so it cannot look around while it is broadcasting, and the
+     * look takes the better part of ten seconds. Done here it costs nothing - the buyer is reading
+     * the screen - and the code appears almost at once when they do press it. Nothing is said on
+     * screen about any of this.
+     */
+    @JavascriptInterface
+    public void netWarm() {
+        if (!local) return;
+        if (netPhase.length() > 0) return;          /* setup is already past this point */
+        new Thread(new Runnable() {
+            @Override public void run() { try { lookAround(); } catch (Throwable ignored) { } }
+        }, "salah-warm").start();
+    }
+
+    private boolean scanFresh() {
+        return preScan.length() > 0 && SystemClock.elapsedRealtime() - preScanAt < 90000;
+    }
+
+    /**
+     * Puts the radio back to listening and asks what is in range.
+     *
+     * Only works when the frame is not already broadcasting: restarting the app leaves the
+     * previous run's access point up, and a scan taken then finds nothing, which is exactly what
+     * the buyer saw. So the radio is put back to listening, given a moment, and then asked.
+     */
+    private void lookAround() {
+        synchronized (radio) {
+            if (scanFresh()) return;                /* another thread just did this */
+            if (!controlReady()) return;
+            String saved = outShell("cmd wifi list-networks");
+            if (saved != null && saved.matches("(?s).*\\n\\s*\\d+\\s+\\S.*")) return;
+            outShell("cmd wifi stop-softap >/dev/null 2>&1; "
+                   + "cmd wifi set-wifi-enabled enabled 2>&1; "
+                   /* Android hands back scan results only where location is on - a photo frame
+                      has no reason to have it on, and with it off the list comes back empty with
+                      no error to say why. Scanning-always-available is asked for at the same
+                      time, since the radio is otherwise allowed to go quiet. */
+                   + "cmd location set-location-enabled true 2>&1; "
+                   + "settings put secure location_mode 3 2>&1; "
+                   + "cmd wifi set-scan-always-available enabled 2>&1; "
+                   + "sleep 3");
+            String s = outShell("cmd wifi start-scan 2>&1; sleep 6; cmd wifi list-scan-results");
+            int seen = HotspotServer.parseScan(s).size();
+            Log.i(TAG, "networks in range before going up: " + seen);
+            if (seen == 0) {
+                String head = s == null ? "" : s.trim();
+                Log.w(TAG, "the scan said: " + (head.length() > 400 ? head.substring(0, 400) : head));
+            }
+            preScan = s == null ? "" : s;
+            preScanAt = SystemClock.elapsedRealtime();
+        }
+    }
+
     /** phase: working, retry (a network is already saved), ready, or error. */
     @JavascriptInterface
     public String netInfo() {
@@ -483,6 +544,7 @@ public class HostControl {
             o.put("url", apUrl);
             o.put("name", frameName());
             o.put("state", server != null ? server.state() : "idle");
+            o.put("joining", server != null ? server.joining() : "");
         } catch (Throwable ignored) { }
         return o.toString();
     }
@@ -515,29 +577,9 @@ public class HostControl {
             catch (Throwable ignored) { }
             Log.i(TAG, "Salah OS " + ver + " bringing up the hotspot");
 
-            /*
-              Look around first - see preScan(). This is the only chance to, and it only works if
-              the frame is not already broadcasting: restarting the app leaves the previous run's
-              access point up, and a scan taken then finds nothing, which is exactly what the
-              buyer saw. So the radio is put back to listening, given a moment, and then asked.
-            */
-            outShell("cmd wifi stop-softap >/dev/null 2>&1; "
-                   + "cmd wifi set-wifi-enabled enabled 2>&1; "
-                   /* Android hands back scan results only where location is on - a photo frame
-                      has no reason to have it on, and with it off the list comes back empty with
-                      no error to say why. Scanning-always-available is asked for at the same
-                      time, since the radio is otherwise allowed to go quiet. */
-                   + "cmd location set-location-enabled true 2>&1; "
-                   + "settings put secure location_mode 3 2>&1; "
-                   + "cmd wifi set-scan-always-available enabled 2>&1; "
-                   + "sleep 3");
-            preScan = outShell("cmd wifi start-scan 2>&1; sleep 6; cmd wifi list-scan-results");
-            int seen = HotspotServer.parseScan(preScan).size();
-            Log.i(TAG, "networks in range before going up: " + seen);
-            if (seen == 0) {
-                String head = preScan == null ? "" : preScan.trim();
-                Log.w(TAG, "the scan said: " + (head.length() > 400 ? head.substring(0, 400) : head));
-            }
+            /* Usually already done, while the buyer was choosing a language - see netWarm(). */
+            if (scanFresh()) Log.i(TAG, "using the list taken while the language was being chosen");
+            else lookAround();
 
             String ssid = frameName();
             String pass = newPassword();

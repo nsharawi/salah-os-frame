@@ -16,6 +16,7 @@
 :root{
   --bg:#F6F7F8; --on:#17191C; --dim:#454C54; --row:#EEF0F2; --line:#C3C7CC;
   --p:#2E649E; --on-p:#FFFFFF;
+  --ok:#0B5133; --ok-bg:#B7F0C8;
   --em:cubic-bezier(.2,0,0,1);
 }
 *{box-sizing:border-box}
@@ -70,6 +71,11 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
    stray dot rather than something in motion. */
 /* the same 300px square the code occupies, so the screen does not jump when one replaces
    the other and the ring is legible from the same distance */
+.tick{width:300px;height:300px}
+.tick circle{fill:var(--ok-bg);stroke:none}
+.tick path{fill:none;stroke:var(--ok);stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:26;stroke-dashoffset:26;animation:draw .45s var(--em) .05s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
 .spin{width:300px;height:300px;animation:turn 1.6s linear infinite}
 .spin circle{fill:none;stroke:var(--p);stroke-width:3;stroke-linecap:round;
              animation:arc 1.4s ease-in-out infinite;transform-origin:center}
@@ -80,7 +86,8 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
 100%{stroke-dasharray:22 104;stroke-dashoffset:-124}}
 @media (prefers-reduced-motion:reduce){
   .spin{animation:none}
-  .spin circle{animation:none;stroke-dasharray:88 38}}
+  .spin circle{animation:none;stroke-dasharray:88 38}
+  .tick path{animation:none;stroke-dashoffset:0}}
 .s{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--dim)}
 .why{margin:16px 0 0;font-size:14px;line-height:1.5;color:#8C1D18}
 @media (prefers-reduced-motion:reduce){.d{animation:none}*{transition:none !important}}
@@ -124,7 +131,8 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     <p class="why" id="why" hidden></p>
   </div>
   <div class="wzr"><div class="wzi" style="display:flex;justify-content:center">
-    <svg class="spin" viewBox="0 0 48 48" role="progressbar" aria-label="Working"><circle cx="24" cy="24" r="20"/></svg>
+    <svg class="spin" id="spin" viewBox="0 0 48 48" role="progressbar" aria-label="Working"><circle cx="24" cy="24" r="20"/></svg>
+    <svg class="tick" id="tick" viewBox="0 0 48 48" style="display:none" aria-hidden="true"><circle cx="24" cy="24" r="20"/><path d="M15.5 24.5l6 6L32.5 19"/></svg>
   </div></div>
   <div class="wzf"><button class="btn ghost" id="wifi" type="button"></button></div>
 </section>
@@ -155,6 +163,9 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     'Starting phone setup…': 'جارٍ تجهيز الإعداد من الهاتف…',
     'Set up from your phone': 'أعدّ الإطار من هاتفك',
     'Looking for networks…': 'جارٍ البحث عن الشبكات…',
+    'Connecting to': 'جارٍ الاتصال بـ',
+    'Connected': 'تم الاتصال',
+    'Salah OS is starting.': 'جارٍ بدء تشغيل Salah OS.',
     'Joining your network…': 'جارٍ الاتصال بشبكتك…',
     'Connected. Starting Salah OS…': 'تم الاتصال. جارٍ بدء التشغيل…',
     'That did not work. Try again on your phone.': 'لم ينجح. حاول مرة أخرى من هاتفك.',
@@ -185,7 +196,13 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     try { if (F && F.setLang) F.setLang(lang); } catch (e) { }
     begin();
   };
-  if (lang) { mark(lang); begin(); } else screen('pick');
+  if (lang) { mark(lang); begin(); } else {
+    screen('pick');
+    /* The slowest part of all this is the frame looking at what networks are in range, which it
+       cannot do while it is broadcasting. Started here it happens while the buyer reads this
+       screen, and the code appears almost as soon as they press the button. */
+    try { if (F && F.netWarm) F.netWarm(); } catch (e) { }
+  }
 
   function begin() {
     document.documentElement.lang = lang;
@@ -205,12 +222,40 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
 
   /* Nothing is said about looking for networks: the frame cannot look while it is broadcasting,
      and a line in the corner saying it is doing something it is not helps nobody. */
-  var LIVE = { joining: 'Joining your network…',
-               connected: 'Connected. Starting Salah OS…', failed: 'That did not work. Try again on your phone.' };
+  var LIVE = { failed: 'That did not work. Try again on your phone.' };
+
+  /*
+     Whatever is happening on the phone shows on the frame, full size.
+     Someone who taps Join on their phone looks up at the frame, and a line of small print in the
+     corner saying the same thing is not an answer: the frame should visibly be doing it. So the
+     waiting screen is borrowed back - the network being joined under a turning ring, and then a
+     check when it is done, which is what the phone shows at that moment too.
+  */
+  function esc(x) {
+    return String(x).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function stage(head, sub, done, strong) {
+    id('wh').textContent = t(head);
+    /* The network's name is the subject of the sentence, and a Latin name on an Arabic frame
+       keeps its own direction without dragging the line it sits in around with it. */
+    if (strong) id('wp').innerHTML = '<b style="unicode-bidi:isolate">' + esc(sub) + '</b>';
+    else id('wp').textContent = sub;
+    id('spin').style.display = done ? 'none' : '';
+    id('tick').style.display = done ? '' : 'none';
+    id('why').hidden = true;
+    id('wifi').hidden = true;
+    screen('wait');
+  }
 
   function tick() {
     var d;
     try { d = JSON.parse(F.netInfo()); } catch (e) { return; }
+    if (d.state === 'joining') { stage('Connecting to', d.joining || '', false, true); return; }
+    if (d.state === 'connected') { stage('Connected', t('Salah OS is starting.'), true); return; }
+
     if (d.phase === 'ready' && d.ssid) {
       if (shown !== d.ssid + d.url) {
         shown = d.ssid + d.url;
@@ -250,6 +295,8 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
       id('wh').textContent = t('Just a moment');
       id('wp').textContent = t('Getting this frame ready.');
     }
+    id('spin').style.display = '';
+    id('tick').style.display = 'none';
   }
 })();
 </script></body></html>

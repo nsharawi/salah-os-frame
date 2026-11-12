@@ -62,6 +62,9 @@ final class HotspotServer {
 
     String state() { return state; }
 
+    /** The network the phone asked the frame to join, so the frame can name it on its own screen. */
+    String joining() { return joined; }
+
     /** True when the frame had to fall back and the firewall has to carry port 80 here. */
     boolean fellBack() { return fellBack; }
 

@@ -25,16 +25,20 @@ final class CaptivePortal {
     private static final String TAG = "SalahHotspot";
     /* Not 5353: Android's own mDNS service already holds that one, and the bind failed, which
        took the firewall rules down with it and left the phone with no address at all. */
-    private static final int DNS_PORT = 15353;
+    private static final int DNS_PORT = 53;     /* if the kernel allows it */
+    private static final int DNS_ALT  = 15353;
 
     private final HostControl host;
+    private DhcpServer dhcp;
+    private HotspotServer web;
+    private boolean dnsFellBack;
     private DatagramSocket sock;
     private Thread thread;
     private volatile boolean running;
     private String iface = "";
     private byte[] answer = new byte[4];
 
-    CaptivePortal(HostControl h) { host = h; }
+    CaptivePortal(HostControl h, DhcpServer d, HotspotServer w) { host = h; dhcp = d; web = w; }
 
     /** @param ip the frame's own address on the hotspot, which every lookup will be answered with. */
     synchronized void start(String ip, String ifaceName) {
@@ -54,11 +58,18 @@ final class CaptivePortal {
           makes the setup page open by itself. Tying the two together once meant a failure in the
           second quietly cancelled the first, and the phone joined a network that gave it nothing.
         */
+        try {
+            sock = new DatagramSocket(DNS_PORT);
+            dnsFellBack = false;
+        } catch (Throwable low) {
+            try { sock = new DatagramSocket(DNS_ALT); dnsFellBack = true; } catch (Throwable t2) { sock = null; }
+        }
+
         running = true;
         rules("-A");
 
         try {
-            sock = new DatagramSocket(DNS_PORT);
+            if (sock == null) throw new java.net.BindException("no port for names");
             sock.setSoTimeout(1000);
             thread = new Thread(new Runnable() { @Override public void run() { loop(); } }, "salah-dns");
             thread.setDaemon(true);
@@ -91,12 +102,25 @@ final class CaptivePortal {
     private void rules(String op) {
         String in = iface.length() > 0 ? "-i " + iface + " " : "";
         String out = iface.length() > 0 ? "-o " + iface + " " : "";
-        String said = host.outShell(
-            "iptables -t nat " + op + " PREROUTING " + in + "-p udp --dport 53 -j REDIRECT --to-ports " + DNS_PORT + " 2>&1; " +
-            "iptables -t nat " + op + " PREROUTING " + in + "-p udp --dport 67 -j REDIRECT --to-ports " + DhcpServer.PORT + " 2>&1; " +
-            "iptables -t nat " + op + " PREROUTING " + in + "-p tcp --dport 80 -j REDIRECT --to-ports " + HotspotServer.PORT + " 2>&1; " +
-            "iptables -t nat " + op + " POSTROUTING " + out + "-p udp --sport " + DhcpServer.PORT +
-                " -j SNAT --to-source " + DhcpServer.SELF + ":67 2>&1");
+        StringBuilder cmd = new StringBuilder();
+        /* A rule is only needed where the app could not take the port itself. */
+        if (dnsFellBack) {
+            cmd.append("iptables -t nat ").append(op).append(" PREROUTING ").append(in)
+               .append("-p udp --dport 53 -j REDIRECT --to-ports ").append(DNS_ALT).append(" 2>&1; ");
+        }
+        if (dhcp != null && dhcp.fellBack()) {
+            cmd.append("iptables -t nat ").append(op).append(" PREROUTING ").append(in)
+               .append("-p udp --dport 67 -j REDIRECT --to-ports ").append(DhcpServer.ALT).append(" 2>&1; ");
+            cmd.append("iptables -t nat ").append(op).append(" POSTROUTING ").append(out)
+               .append("-p udp --sport ").append(DhcpServer.ALT)
+               .append(" -j SNAT --to-source ").append(DhcpServer.SELF).append(":67 2>&1; ");
+        }
+        if (web != null && web.fellBack()) {
+            cmd.append("iptables -t nat ").append(op).append(" PREROUTING ").append(in)
+               .append("-p tcp --dport 80 -j REDIRECT --to-ports ").append(HotspotServer.ALT).append(" 2>&1; ");
+        }
+        if (cmd.length() == 0) { Log.i(TAG, "every port taken directly; no firewall rules needed"); return; }
+        String said = host.outShell(cmd.toString());
         /* Worth saying out loud: if the firewall refuses these, the phone joins the frame and
            then sits there, which looks like nothing at all going wrong. */
         if (said != null && said.trim().length() > 0) Log.w(TAG, "iptables " + op + " said: " + said.trim());

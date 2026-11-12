@@ -40,13 +40,16 @@ import java.util.regex.Pattern;
  */
 final class HotspotServer {
     private static final String TAG = "SalahHotspot";
-    static final int PORT = 8080;
+    static final int PORT = 80;      /* where a phone looks when it checks for a way out */
+    static final int ALT  = 8080;    /* and where the firewall sends it if 80 is barred */
 
     private final MainActivity act;
     private final HostControl host;
     private ServerSocket socket;
     private Thread thread;
     private volatile boolean running;
+    private volatile boolean fellBack;
+    private volatile int port = PORT;
 
     /** idle, scanning, joining, connected or failed. Read by the phone page through /state. */
     private volatile String state = "idle";
@@ -59,9 +62,24 @@ final class HotspotServer {
 
     String state() { return state; }
 
+    /** True when the frame had to fall back and the firewall has to carry port 80 here. */
+    boolean fellBack() { return fellBack; }
+
+    /** The port the page is really being served on, which the address shown has to match. */
+    int port() { return port; }
+
     synchronized void start() throws IOException {
         if (running) return;
-        socket = new ServerSocket(PORT);
+        try {
+            socket = new ServerSocket(PORT);
+            port = PORT;
+            fellBack = false;
+        } catch (Throwable low) {
+            Log.w(TAG, "port 80 is barred (" + low + "), falling back to " + ALT);
+            socket = new ServerSocket(ALT);
+            port = ALT;
+            fellBack = true;
+        }
         socket.setSoTimeout(1000);
         running = true;
         state = "idle";
@@ -71,7 +89,7 @@ final class HotspotServer {
         }, "salah-hotspot");
         thread.setDaemon(true);
         thread.start();
-        Log.i(TAG, "setup server listening on " + PORT);
+        Log.i(TAG, "setup server listening on " + port);
     }
 
     synchronized void stop() {
@@ -153,7 +171,8 @@ final class HotspotServer {
         /* Anything else — including the connectivity check a phone makes the moment it joins —
            is pointed at the setup page. On some phones that check is what opens it by itself. */
         byte[] none = new byte[0];
-        String headers = "HTTP/1.1 302 Found\r\nLocation: /\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        String headers = "HTTP/1.1 302 Found\r\nLocation: http://" + DhcpServer.SELF
+                + (port == 80 ? "" : ":" + port) + "/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
         out.write(headers.getBytes("UTF-8"));
         out.write(none);
         out.flush();

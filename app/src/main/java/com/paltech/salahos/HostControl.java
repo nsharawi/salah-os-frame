@@ -522,16 +522,28 @@ public class HostControl {
                    + "ip -o -4 addr show dev " + iface + " 2>&1");
             Log.i(TAG, "address on " + iface + ": " + (addr == null ? "" : addr.trim()));
 
+            /*
+              Ports 53, 67 and 80 are the kernel's by default. Opening them to ordinary processes
+              lets the app answer on them directly, which matters most for DHCP: a phone checks
+              that the answer came from port 67 and discards anything else, and an answer rewritten
+              on the way out by the firewall is not reliably accepted. Where the kernel has no such
+              setting the servers fall back and the firewall carries the ports instead.
+            */
+            Log.i(TAG, "low ports: " + outShell(
+                    "sysctl -w net.ipv4.ip_unprivileged_port_start=53 2>&1; "
+                  + "echo 53 > /proc/sys/net/ipv4/ip_unprivileged_port_start 2>&1; "
+                  + "cat /proc/sys/net/ipv4/ip_unprivileged_port_start 2>&1").trim());
+
             if (dhcp == null) dhcp = new DhcpServer();
             dhcp.start();
-            if (portal == null) portal = new CaptivePortal(this);
-            portal.start(DhcpServer.SELF, iface);
             if (server == null) server = new HotspotServer(act, this);
             server.start();
+            if (portal == null) portal = new CaptivePortal(this, dhcp, server);
+            portal.start(DhcpServer.SELF, iface);
 
             apSsid = ssid;
             apPass = pass;
-            apUrl = "http://" + DhcpServer.SELF + ":" + HotspotServer.PORT + "/";
+            apUrl = "http://" + DhcpServer.SELF + (server.port() == 80 ? "" : ":" + server.port()) + "/";
             netPhase = "ready";
             Log.i(TAG, "hotspot " + ssid + " up on " + iface);
         } catch (Throwable t) {

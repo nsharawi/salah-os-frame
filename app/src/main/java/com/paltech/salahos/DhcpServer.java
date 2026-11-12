@@ -22,9 +22,11 @@ import java.util.Map;
  */
 final class DhcpServer {
     private static final String TAG = "SalahHotspot";
-    static final int PORT = 6767;            /* 67 after the firewall rule */
+    static final int PORT = 67;              /* where a phone expects to be answered from */
+    static final int ALT  = 6767;            /* and where the firewall sends it if 67 is barred */
     static final String NET = "192.168.49";
     static final String SELF = NET + ".1";
+    static final String BCAST = NET + ".255";
     private static final int LEASE_SECONDS = 3600;
 
     private DatagramSocket sock;
@@ -33,17 +35,37 @@ final class DhcpServer {
     private final Map<String, Integer> leases = new HashMap<String, Integer>();
     private int next = 20;
 
+    /** True when the frame had to fall back, and the firewall has to carry port 67 here. */
+    private volatile boolean fellBack;
+
+    boolean fellBack() { return fellBack; }
+
     synchronized void start() {
         if (running) return;
         try {
-            sock = new DatagramSocket(PORT);
+            /*
+              Port 67 if it can be had. A phone's DHCP client checks that the answer came FROM
+              port 67 and throws away anything else, so an answer rewritten on the way out by the
+              firewall is a coin toss - and losing it looks exactly like what the frame did:
+              the phone asks, gets nothing it will accept, and says the address configuration
+              failed. Binding 67 outright removes the question. Where the kernel will not allow
+              it, the firewall carries 67 here instead and we live with the rewrite.
+            */
+            try {
+                sock = new DatagramSocket(PORT);
+                fellBack = false;
+            } catch (Throwable low) {
+                Log.w(TAG, "port 67 is barred (" + low + "), falling back to " + ALT);
+                sock = new DatagramSocket(ALT);
+                fellBack = true;
+            }
             sock.setBroadcast(true);
             sock.setSoTimeout(1000);
             running = true;
             thread = new Thread(new Runnable() { @Override public void run() { loop(); } }, "salah-dhcp");
             thread.setDaemon(true);
             thread.start();
-            Log.i(TAG, "dhcp listening on " + PORT);
+            Log.i(TAG, "dhcp listening on " + (fellBack ? ALT : PORT));
         } catch (Throwable t) {
             Log.w(TAG, "dhcp could not start: " + t);
             stop();
@@ -68,8 +90,13 @@ final class DhcpServer {
                 sock.receive(in);
                 byte[] out = reply(in.getData(), in.getLength());
                 if (out != null) {
-                    /* The phone has no address yet, so the answer can only be shouted. */
-                    sock.send(new DatagramPacket(out, out.length, InetAddress.getByName("255.255.255.255"), 68));
+                    /*
+                      Shouted, because the phone has no address yet to be spoken to - but shouted
+                      on this subnet rather than at 255.255.255.255. The latter is sent wherever
+                      the routing table feels like, which with the frame's own Wi-Fi down is
+                      nowhere useful; 192.168.49.255 can only go out of the access point.
+                    */
+                    sock.send(new DatagramPacket(out, out.length, InetAddress.getByName(BCAST), 68));
                 }
             } catch (java.net.SocketTimeoutException e) {
                 /* nobody asked this second */

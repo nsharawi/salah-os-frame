@@ -73,12 +73,16 @@ final class CaptivePortal {
     private void rules(String op) {
         String in = iface.length() > 0 ? "-i " + iface + " " : "";
         String out = iface.length() > 0 ? "-o " + iface + " " : "";
-        host.outShell(
+        String said = host.outShell(
             "iptables -t nat " + op + " PREROUTING " + in + "-p udp --dport 53 -j REDIRECT --to-ports " + DNS_PORT + " 2>&1; " +
             "iptables -t nat " + op + " PREROUTING " + in + "-p udp --dport 67 -j REDIRECT --to-ports " + DhcpServer.PORT + " 2>&1; " +
             "iptables -t nat " + op + " PREROUTING " + in + "-p tcp --dport 80 -j REDIRECT --to-ports " + HotspotServer.PORT + " 2>&1; " +
             "iptables -t nat " + op + " POSTROUTING " + out + "-p udp --sport " + DhcpServer.PORT +
                 " -j SNAT --to-source " + DhcpServer.SELF + ":67 2>&1");
+        /* Worth saying out loud: if the firewall refuses these, the phone joins the frame and
+           then sits there, which looks like nothing at all going wrong. */
+        if (said != null && said.trim().length() > 0) Log.w(TAG, "iptables " + op + " said: " + said.trim());
+        if ("-A".equals(op)) Log.i(TAG, "rules now: " + host.outShell("iptables -t nat -S PREROUTING 2>&1"));
     }
 
     private void loop() {

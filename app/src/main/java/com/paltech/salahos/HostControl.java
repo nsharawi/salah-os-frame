@@ -486,6 +486,12 @@ public class HostControl {
                 return;
             }
 
+            /* Which build is talking, so a log can never be mistaken for a newer one again. */
+            String ver = "?";
+            try { ver = act.getPackageManager().getPackageInfo(act.getPackageName(), 0).versionName; }
+            catch (Throwable ignored) { }
+            Log.i(TAG, "Salah OS " + ver + " bringing up the hotspot");
+
             String ssid = frameName();
             String pass = newPassword();
 

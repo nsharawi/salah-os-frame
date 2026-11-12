@@ -116,6 +116,15 @@ final class CaptivePortal {
         String in = iface.length() > 0 ? "-i " + iface + " " : "";
         String out = iface.length() > 0 ? "-o " + iface + " " : "";
         java.util.List<String[]> want = new ArrayList<String[]>();
+        /*
+          Everything arriving from the hotspot is let through the filter table first. Android keeps
+          its own chains in there and a packet that survives the redirect can still be dropped
+          before any socket sees it, which looks identical to the redirect not working: the rules
+          are listed, the app hears nothing, the phone gives up. While the hotspot is up this
+          interface carries nothing but one phone doing setup, so accepting it outright costs
+          nothing and removes a whole class of silent failure.
+        */
+        if (iface.length() > 0) want.add(new String[] { "filter:INPUT", "-i " + iface + " -j ACCEPT" });
         if (dnsFellBack) {
             want.add(new String[] { "PREROUTING", in + "-p udp --dport 53 -j REDIRECT --to-ports " + DNS_ALT });
         }
@@ -134,18 +143,24 @@ final class CaptivePortal {
 
         StringBuilder cmd = new StringBuilder();
         for (String[] r : want) {
+            String table = "nat", chain = r[0];
+            int colon = chain.indexOf(':');
+            if (colon > 0) { table = chain.substring(0, colon); chain = chain.substring(colon + 1); }
             /* however many copies an earlier run left behind */
-            for (int k = 0; k < 4; k++) {
-                cmd.append("iptables -t nat -D ").append(r[0]).append(' ').append(r[1]).append(" 2>/dev/null; ");
+            for (int k = 0; k < 6; k++) {
+                cmd.append("iptables -t ").append(table).append(" -D ").append(chain).append(' ')
+                   .append(r[1]).append(" 2>/dev/null; ");
             }
-            if (add) cmd.append("iptables -t nat -I ").append(r[0]).append(" 1 ").append(r[1]).append(" 2>&1; ");
+            if (add) cmd.append("iptables -t ").append(table).append(" -I ").append(chain).append(" 1 ")
+                        .append(r[1]).append(" 2>&1; ");
         }
         String said = host.outShell(cmd.toString());
         if (said != null && said.trim().length() > 0) Log.w(TAG, "iptables said: " + said.trim());
         if (add) {
             Log.i(TAG, "rules in: " + host.outShell(
                     "iptables -t nat -L PREROUTING -n -v --line-numbers 2>&1; "
-                  + "iptables -t nat -L POSTROUTING -n -v --line-numbers 2>&1"));
+                  + "iptables -t nat -L POSTROUTING -n -v --line-numbers 2>&1; "
+                  + "iptables -L INPUT -n -v --line-numbers 2>&1 | head -12"));
             /* and who already holds the ports we wanted, since that is why we are here at all */
             Log.i(TAG, "port 67 held by: " + host.outShell(
                     "netstat -lnup 2>/dev/null | grep ':67 ' ; grep -i ' 0043 ' /proc/net/udp 2>/dev/null").trim());

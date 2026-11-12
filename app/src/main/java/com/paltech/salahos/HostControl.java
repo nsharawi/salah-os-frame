@@ -192,6 +192,9 @@ public class HostControl {
         new Thread(new Runnable() {
             @Override public void run() {
                 wifiOut = outShell(cmd);
+                /* Wi-Fi set by hand counts as set: the wizard has no reason to ask again either. */
+                if ("connect".equals(op) && wifiOut != null && wifiOut.toLowerCase().contains("connected to"))
+                    markNetDone();
                 wifiBusy = false;
             }
         }).start();
@@ -435,6 +438,15 @@ public class HostControl {
     @JavascriptInterface
     public String getLang() { return lang(); }
 
+    /**
+     * Whether this frame has put itself on a network - the phone handed it one, or the wizard's
+     * own Wi-Fi page did. The site is told, so that its wizard drops the Wi-Fi step rather than
+     * asking a buyer to join a network they are demonstrably already on.
+     */
+    boolean netDone() { return prefs.getBoolean("net_done", false); }
+
+    void markNetDone() { prefs.edit().putBoolean("net_done", true).apply(); }
+
     String lang() { return prefs.getString("ui_lang", ""); }
 
     // ---- first run: no network yet ---------------------------------------------------------
@@ -626,6 +638,18 @@ public class HostControl {
     }
 
     boolean hotspotUp() { return server != null && server.isRunning(); }
+
+    /**
+     * True from the moment first-run setup starts until it is finished with.
+     *
+     * The retry that reloads the site every fifteen seconds has to hold off for all of it, not
+     * only for the part where the hotspot is already up: raising it takes the better part of
+     * twenty seconds, and a reload in the middle of that threw the screen back to the beginning
+     * and started it over, which is the flicker - picker, spinner, picker, spinner, code.
+     */
+    boolean netBusy() {
+        return "working".equals(netPhase) || "ready".equals(netPhase);
+    }
 
     private static boolean looksFailed(String out) {
         if (out == null) return true;

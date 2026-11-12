@@ -11,11 +11,11 @@
 -->
 <style>
 :root{
-  --bg:#F6FBF7;--surface:#FFFFFF;--variant:#DCE5DD;--on:#191C1A;--on-variant:#414942;
+  --bg:#EDF2EE;--surface:#FFFFFF;--variant:#DCE5DD;--on:#191C1A;--on-variant:#414942;
   --primary:#1C6B48;--on-primary:#FFFFFF;--container:#B9F0CF;--on-container:#002112;--err:#BA1A1A;
 }
 @media (prefers-color-scheme:dark){
-  :root{--bg:#0E1411;--surface:#17201B;--variant:#2A332D;--on:#E4EAE6;--on-variant:#9AA69F;
+  :root{--bg:#0E1411;--surface:#1D2621;--variant:#2A332D;--on:#E4EAE6;--on-variant:#9AA69F;
         --primary:#8FD6B8;--on-primary:#003826;--container:#005134;--on-container:#B9F0CF;--err:#FFB4A9}
 }
 *{box-sizing:border-box}
@@ -30,23 +30,25 @@ body{background:var(--bg);color:var(--on);font-family:system-ui,-apple-system,Ro
   min-height:40px;padding:0 14px;font:inherit;font-weight:500;font-size:.9rem;cursor:pointer}
 h1{font-size:1.5rem;font-weight:400;line-height:1.3;margin:0 0 4px}
 .sub{color:var(--on-variant);font-size:.9375rem;line-height:1.4;margin:0 0 16px}
-.card{background:var(--surface);border-radius:28px;overflow:hidden;margin-bottom:10px}
-.it{display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:10px 18px;border:0;
-  background:var(--variant);color:inherit;font:inherit;text-align:start;cursor:pointer;border-radius:4px;margin-bottom:2px}
+.cap{font-size:.875rem;font-weight:500;color:var(--primary);margin:20px 4px 8px}
+.card{border-radius:28px;overflow:hidden;margin-bottom:10px}
+.it{display:flex;align-items:center;gap:18px;width:100%;min-height:60px;padding:10px 20px;border:0;
+  background:var(--surface);color:inherit;font:inherit;text-align:start;cursor:pointer;border-radius:4px;margin-bottom:2px}
 .it:first-child{border-radius:28px 28px 4px 4px}
 .it:last-child{border-radius:4px 4px 28px 28px;margin-bottom:0}
 .it:only-child{border-radius:28px}
-.it:active{opacity:.75}
+.it:active{background:var(--variant)}
 .it.on{background:var(--container);color:var(--on-container)}
 .tx{flex:1;min-width:0}
-.t1{display:block;font-size:1rem;line-height:1.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;unicode-bidi:plaintext}  /* a Latin network name reads left to right even on an Arabic phone */
+.t1{display:block;font-size:1rem;line-height:1.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;unicode-bidi:isolate}  /* a Latin name reads left to right, still hung on the row's start edge */
 .t2{display:block;font-size:.875rem;line-height:1.25rem;color:var(--on-variant);overflow-wrap:anywhere}
 .it.on .t2{color:var(--on-container)}
-.bars{flex:none;width:22px;height:22px;display:flex;align-items:flex-end;gap:2px}
-.bars i{flex:1;background:currentColor;opacity:.25;border-radius:1px}
-.bars i.f{opacity:1}
-.bars i:nth-child(1){height:30%}.bars i:nth-child(2){height:60%}.bars i:nth-child(3){height:100%}
-.lock{flex:none;font-size:.95rem;color:var(--on-variant)}
+.ic{flex:none;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
+.wi{color:var(--on-variant)}
+.wi .q{opacity:.3}                      /* the arcs this network is not strong enough to light */
+.wi .d{fill:currentColor;stroke:none}
+.lk{color:var(--on-variant);width:20px;height:20px}
 label{display:block;font-size:.9rem;color:var(--on-variant);margin:18px 0 6px}
 input{width:100%;min-height:56px;border:1px solid var(--on-variant);border-radius:12px;background:var(--surface);
   color:inherit;font:inherit;font-size:1rem;padding:0 16px;unicode-bidi:plaintext}
@@ -96,6 +98,7 @@ input:focus{outline:2px solid var(--primary);border-color:transparent}
     'Check the password and try again.': 'تحقق من كلمة المرور وحاول مرة أخرى.',
     'Try again': 'حاول مرة أخرى',
     'Open': 'مفتوحة',
+    'Networks': 'الشبكات',
     'The frame could not be reached. Make sure your phone is still on the frame’s Wi-Fi.':
       'تعذّر الوصول إلى الإطار. تأكد من بقاء هاتفك متصلًا بشبكة الإطار.'
   };
@@ -141,10 +144,22 @@ input:focus{outline:2px solid var(--primary);border-color:transparent}
     });
   }
 
-  function bars(rssi) {
-    var n = rssi > -60 ? 3 : rssi > -72 ? 2 : 1, h = '';
-    for (var i = 1; i <= 3; i++) h += '<i class="' + (i <= n ? 'f' : '') + '"></i>';
-    return '<span class="bars">' + h + '</span>';
+  /* The phone's own Wi-Fi list draws signal as arcs over a dot, and a closed network as a small
+     outlined padlock. Both are drawn here rather than borrowed: the page carries no icon font,
+     and an emoji padlock is a picture of a lock, not the Material one. */
+  function wifi(rssi) {
+    var n = rssi > -60 ? 3 : rssi > -72 ? 2 : 1;
+    function arc(i, d) { return '<path class="' + (i <= n ? '' : 'q') + '" d="' + d + '"/>'; }
+    return '<svg class="ic wi" viewBox="0 0 24 24" aria-hidden="true">'
+      + arc(3, 'M2.3 9.1a15.2 15.2 0 0 1 19.4 0')
+      + arc(2, 'M5.7 13a10 10 0 0 1 12.6 0')
+      + arc(1, 'M9.1 16.9a4.8 4.8 0 0 1 5.8 0')
+      + '<circle class="d" cx="12" cy="19.8" r="1.5"/></svg>';
+  }
+  function lock() {
+    return '<svg class="ic lk" viewBox="0 0 24 24" aria-hidden="true">'
+      + '<rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/>'
+      + '<path d="M8.25 10V7.25a3.75 3.75 0 0 1 7.5 0V10"/></svg>';
   }
 
   function draw() {
@@ -155,14 +170,18 @@ input:focus{outline:2px solid var(--primary);border-color:transparent}
     } else if (phase === 'list') {
       h = '<h1>' + esc(t('Choose your Wi-Fi')) + '</h1><p class="sub">' + esc(t('Pick the network this frame should use. It only has to be done once.')) + '</p>';
       if (!nets.length) h += '<p class="note">' + esc(t('No networks found.')) + '</p>';
+      else h += '<div class="cap">' + esc(t('Networks')) + '</div>';
       h += '<div class="card">';
       nets.forEach(function (n, i) {
-        h += '<button class="it" data-i="' + i + '" type="button">' + bars(n.rssi)
+        h += '<button class="it" data-i="' + i + '" type="button">' + wifi(n.rssi)
           + '<span class="tx"><span class="t1">' + esc(n.ssid) + '</span>'
           + (n.sec === 'open' ? '<span class="t2">' + esc(t('Open')) + '</span>' : '') + '</span>'
-          + (n.sec === 'open' ? '' : '<span class="lock">🔒</span>') + '</button>';
+          + (n.sec === 'open' ? '' : lock()) + '</button>';
       });
-      h += '<button class="it" data-other="1" type="button"><span class="tx"><span class="t1">' + esc(t('Other network…'))
+      h += '<button class="it" data-other="1" type="button">'
+        + '<svg class="ic lk" viewBox="0 0 24 24" aria-hidden="true" style="width:24px;height:24px">'
+        + '<path d="M12 5v14M5 12h14"/></svg>'
+        + '<span class="tx"><span class="t1">' + esc(t('Other network…'))
         + '</span><span class="t2">' + esc(t('Enter the name yourself')) + '</span></span></button></div>'
         + '<div class="row"><button class="btn ghost" id="again" type="button">' + esc(t('Search again')) + '</button></div>';
     } else if (phase === 'pass') {

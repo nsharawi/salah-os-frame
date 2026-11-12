@@ -30,8 +30,11 @@ public class MainActivity extends Activity {
 
     /** The site, told which language the frame was set to, so the wizard does not ask again. */
     private String homeUrl() {
-        String l = host != null ? host.lang() : "";
-        return l.length() > 0 ? HOME_URL + "?lang=" + l : HOME_URL;
+        if (host == null) return HOME_URL;
+        String q = "";
+        if (host.lang().length() > 0) q = "?lang=" + host.lang();
+        if (host.netDone()) q = q.length() > 0 ? q + "&net=1" : "?net=1";
+        return HOME_URL + q;
     }
     private static final String TECH_URL = "file:///android_asset/tech.html";
 
@@ -63,7 +66,7 @@ public class MainActivity extends Activity {
             /* While the hotspot is up the buyer is in the middle of setting Wi-Fi up on their
                phone, and reloading underneath them would throw that away. The phone's own answer
                brings the site back instead, through onHotspotJoined(). */
-            if (offline && web != null && !host.hotspotUp()) { loadFailed = false; web.loadUrl(homeUrl()); }
+            if (offline && web != null && !host.netBusy()) { loadFailed = false; web.loadUrl(homeUrl()); }
         }
     };
 
@@ -206,6 +209,7 @@ public class MainActivity extends Activity {
 
     /** The phone sent a network and the frame joined it: try the site again straight away. */
     void onHotspotJoined() {
+        host.markNetDone();
         ui.post(new Runnable() {
             @Override public void run() {
                 loadFailed = false;

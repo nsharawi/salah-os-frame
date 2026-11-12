@@ -51,11 +51,35 @@ final class DhcpServer {
               failed. Binding 67 outright removes the question. Where the kernel will not allow
               it, the firewall carries 67 here instead and we live with the rewrite.
             */
+            /*
+              Port 67 is already held, by Android's own tethering server inside system_server. It
+              is not serving anything here - the shell command that raises the access point never
+              starts the tethering layer - but it holds the port all the same.
+              Sharing it is allowed: a socket that asks to reuse the address can bind alongside,
+              and the kernel hands a BROADCAST datagram to every socket bound to that port, which
+              is exactly what a DHCP request is. So this does not take the port from anyone; it
+              listens beside them.
+            */
+            fellBack = false;
             try {
-                sock = new DatagramSocket(PORT);
-                fellBack = false;
-            } catch (Throwable low) {
-                Log.w(TAG, "port 67 is barred (" + low + "), falling back to " + ALT);
+                sock = new DatagramSocket(null);
+                sock.setReuseAddress(true);
+                sock.bind(new java.net.InetSocketAddress(PORT));
+                Log.i(TAG, "sharing port " + PORT + " with whoever else holds it");
+            } catch (Throwable shared) {
+                Log.w(TAG, "could not share port 67 (" + shared + ")");
+                try { if (sock != null) sock.close(); } catch (Throwable ignored) { }
+                sock = null;
+            }
+            if (sock == null) {
+                /*
+                  Last resort, and it is a poor one: the firewall can carry port 67 here, but a
+                  DHCP request arrives from 0.0.0.0, and once the redirect turns the destination
+                  into an ordinary address the kernel throws the packet away as a martian - a
+                  source of 0.0.0.0 is only legal to a broadcast address. Watched on the frame:
+                  the redirect rule counted five packets and nothing ever reached the socket.
+                */
+                Log.w(TAG, "falling back to " + ALT + "; a redirect rarely survives a 0.0.0.0 source");
                 sock = new DatagramSocket(ALT);
                 fellBack = true;
             }

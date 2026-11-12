@@ -35,6 +35,20 @@ public class HostControl {
     private final File pub;
     private volatile String last = "idle";
     volatile boolean trusted;
+    /**
+     * True while the page on screen is one of our own bundled files. Those ship inside the APK and
+     * cannot be replaced from the network, so they are allowed the little that first-run setup
+     * needs — Wi-Fi and the hotspot — and nothing else. Everything heavier stays behind
+     * {@link #trusted}, which only the hosted site earns.
+     */
+    volatile boolean local;
+
+    private HotspotServer server;
+    private volatile String netPhase = "";
+    private volatile String netWhy = "";
+    private volatile String apSsid = "";
+    private volatile String apPass = "";
+    private volatile String apUrl = "";
 
     HostControl(MainActivity a) {
         act = a;
@@ -137,12 +151,14 @@ public class HostControl {
     private volatile boolean wifiBusy;
     private volatile String wifiOut = "";
 
-    private static String q(String v) { return "'" + v.replace("'", "'\\''") + "'"; }
+    private static String q(String v) { return quote(v); }
+
+    static String quote(String v) { return "'" + v.replace("'", "'\\''") + "'"; }
 
     /** op: status, scan, connect or forget. sec: open, owe, wep, wpa2 or wpa3. Poll wifiBusy() and read wifiResult(). */
     @JavascriptInterface
     public void wifi(final String op, final String ssid, final String sec, final String pass) {
-        if (!trusted || wifiBusy) return;
+        if (!(trusted || local) || wifiBusy) return;
         final String cmd;
         if ("status".equals(op)) cmd = "cmd wifi status";
         else if ("scan".equals(op)) cmd = "cmd wifi start-scan; sleep 3; cmd wifi list-scan-results";
@@ -339,7 +355,7 @@ public class HostControl {
     /** Opens Android's Wi-Fi screen. Only from the bundled "no internet" page, so a frame can be connected on first run. */
     @JavascriptInterface
     public void openWifi() {
-        if (!act.isOffline()) return;
+        if (!act.isOffline() && !local) return;
         act.runOnUiThread(new Runnable() {
             @Override public void run() {
                 try {
@@ -387,5 +403,170 @@ public class HostControl {
         } finally {
             try { if (d != null) d.close(); } catch (Throwable ignored) { }
         }
+    }
+
+    // ---- first run: no network yet ---------------------------------------------------------
+
+    /**
+     * Starts the part of setup that happens before the frame has any internet at all.
+     *
+     * A frame that has never been on a network raises a hotspot of its own and serves a setup
+     * page to the buyer's phone; a frame that knows a network and simply cannot reach it right
+     * now does nothing here and keeps retrying. Everything runs on its own thread — the page
+     * asks, then polls {@link #netInfo()} — because none of it is quick and the one thing that
+     * must not stall is the screen.
+     */
+    @JavascriptInterface
+    public void netBegin() {
+        if (!local) return;
+        if ("ready".equals(netPhase) || "working".equals(netPhase)) return;
+        netPhase = "working";
+        netWhy = "";
+        new Thread(new Runnable() {
+            @Override public void run() { bringUpHotspot(); }
+        }, "salah-net").start();
+    }
+
+    /** phase: working, retry (a network is already saved), ready, or error. */
+    @JavascriptInterface
+    public String netInfo() {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("phase", netPhase.length() == 0 ? "idle" : netPhase);
+            o.put("why", netWhy);
+            o.put("ssid", apSsid);
+            o.put("pass", apPass);
+            o.put("url", apUrl);
+            o.put("name", frameName());
+            o.put("state", server != null ? server.state() : "idle");
+        } catch (Throwable ignored) { }
+        return o.toString();
+    }
+
+    /** Takes the hotspot and the setup server down. Safe to call when neither is up. */
+    @JavascriptInterface
+    public void netEnd() {
+        new Thread(new Runnable() {
+            @Override public void run() { tearDownHotspot(); }
+        }, "salah-net-end").start();
+    }
+
+    private void bringUpHotspot() {
+        try {
+            if (!controlReady()) {
+                netWhy = "this frame cannot control its own Wi-Fi";
+                netPhase = "error";
+                return;
+            }
+            /* A frame that already knows a network is having an outage, not a first run. */
+            String saved = outShell("cmd wifi list-networks");
+            if (saved != null && saved.matches("(?s).*\\n\\s*\\d+\\s+\\S.*")) {
+                netPhase = "retry";
+                return;
+            }
+
+            String ssid = frameName();
+            String pass = newPassword();
+            String out = outShell("cmd wifi stop-softap >/dev/null 2>&1; sleep 1; "
+                    + "cmd wifi start-softap " + quote(ssid) + " wpa2 " + quote(pass) + " -b 2");
+            if (looksFailed(out)) {
+                /* Older builds of this command take no band argument. */
+                out = outShell("cmd wifi start-softap " + quote(ssid) + " wpa2 " + quote(pass));
+            }
+            if (looksFailed(out)) {
+                netWhy = "the frame refused to start its hotspot";
+                netPhase = "error";
+                return;
+            }
+
+            /* The access point takes a moment to come up and be given its address. */
+            String ip = null;
+            for (int i = 0; i < 20 && ip == null; i++) {
+                try { Thread.sleep(500); } catch (InterruptedException ignored) { }
+                ip = HotspotServer.apAddress();
+            }
+            if (ip == null) ip = "192.168.43.1";
+
+            if (server == null) server = new HotspotServer(act, this);
+            server.start();
+
+            apSsid = ssid;
+            apPass = pass;
+            apUrl = "http://" + ip + ":" + HotspotServer.PORT + "/";
+            netPhase = "ready";
+        } catch (Throwable t) {
+            netWhy = t.getClass().getSimpleName();
+            netPhase = "error";
+        }
+    }
+
+    private void tearDownHotspot() {
+        try { if (server != null) server.stop(); } catch (Throwable ignored) { }
+        apSsid = "";
+        apPass = "";
+        apUrl = "";
+        if (!"ready".equals(netPhase)) { netPhase = ""; return; }
+        netPhase = "";
+        try { outShell("cmd wifi stop-softap"); } catch (Throwable ignored) { }
+    }
+
+    boolean hotspotUp() { return server != null && server.isRunning(); }
+
+    private static boolean looksFailed(String out) {
+        if (out == null) return true;
+        String s = out.toLowerCase();
+        return s.contains("error") || s.contains("fail") || s.contains("exception") || s.contains("usage:");
+    }
+
+    /** True when the frame answers over its own adb channel, which everything here needs. */
+    private boolean controlReady() {
+        return "ok".equals(runShell("echo ok"));
+    }
+
+    /**
+     * This frame's name, which is also its hotspot: SalahOS- and six characters worked out from
+     * the serial. The assembly tool computes the same name the same way, so the one on the carton
+     * is the one the buyer sees on their phone.
+     */
+    String frameName() {
+        String had = prefs.getString("frame_name", "");
+        if (had.length() > 0) return had;
+        String serial = outShell("getprop ro.serialno").trim();
+        if (serial.length() == 0 || serial.contains("error")) {
+            /* Falls back to a per-device id, which is stable but will not match the carton. */
+            serial = android.provider.Settings.Secure.getString(act.getContentResolver(),
+                    android.provider.Settings.Secure.ANDROID_ID);
+        }
+        String name = "SalahOS-" + crockford(serial == null ? "" : serial);
+        prefs.edit().putString("frame_name", name).apply();
+        return name;
+    }
+
+    /** First 30 bits of the hash, read as six characters of Crockford's alphabet. */
+    private static String crockford(String serial) {
+        final String A = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+        try {
+            byte[] h = MessageDigest.getInstance("SHA-256").digest(serial.getBytes("US-ASCII"));
+            long bits = ((long) (h[0] & 255) << 22) | ((long) (h[1] & 255) << 14)
+                    | ((long) (h[2] & 255) << 6) | ((long) (h[3] & 255) >> 2);
+            StringBuilder b = new StringBuilder();
+            for (int i = 5; i >= 0; i--) b.append(A.charAt((int) ((bits >> (i * 5)) & 31)));
+            return b.toString();
+        } catch (Throwable t) {
+            return "000000";
+        }
+    }
+
+    /**
+     * A fresh password every time the hotspot comes up. It is never typed — it travels inside the
+     * QR code — so there is nothing to gain by making it memorable, and everything to lose by
+     * deriving it from the name printed on the box.
+     */
+    private static String newPassword() {
+        final String A = "abcdefghjkmnpqrstuvwxyz23456789";
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < 14; i++) b.append(A.charAt(r.nextInt(A.length())));
+        return b.toString();
     }
 }

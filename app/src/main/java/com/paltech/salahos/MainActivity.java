@@ -54,7 +54,10 @@ public class MainActivity extends Activity {
     
     private final Runnable retry = new Runnable() {
         @Override public void run() {
-            if (offline && web != null) { loadFailed = false; web.loadUrl(HOME_URL); }
+            /* While the hotspot is up the buyer is in the middle of setting Wi-Fi up on their
+               phone, and reloading underneath them would throw that away. The phone's own answer
+               brings the site back instead, through onHotspotJoined(). */
+            if (offline && web != null && !host.hotspotUp()) { loadFailed = false; web.loadUrl(HOME_URL); }
         }
     };
 
@@ -107,6 +110,7 @@ public class MainActivity extends Activity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
             host.trusted = url != null && url.startsWith(HOME_URL);
+            host.local = url != null && url.startsWith("file:///android_asset/");
         }
 
         @Override
@@ -117,7 +121,12 @@ public class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
-            if (url != null && url.startsWith("https://") && !loadFailed) offline = false;
+            if (url != null && url.startsWith("https://") && !loadFailed) {
+                offline = false;
+                /* The frame is on the network. The phone is still watching the setup page over
+                   the hotspot, so it stays up a little longer to show that it worked. */
+                if (host.hotspotUp()) { ui.removeCallbacks(dropHotspot); ui.postDelayed(dropHotspot, 20000); }
+            }
             hideSplash();
         }
 
@@ -183,6 +192,25 @@ public class MainActivity extends Activity {
 
     HostControl host() { return host; }
     boolean isOffline() { return offline; }
+    boolean isOnline() { return !offline; }
+
+    private final Runnable dropHotspot = new Runnable() {
+        @Override public void run() { host.netEnd(); }
+    };
+
+    /** The phone sent a network and the frame joined it: try the site again straight away. */
+    void onHotspotJoined() {
+        ui.post(new Runnable() {
+            @Override public void run() {
+                loadFailed = false;
+                if (web != null) web.loadUrl(HOME_URL);
+            }
+        });
+        /* If the site still will not load, the hotspot has done its job either way and must not
+           be left running on a wall-mounted frame. */
+        ui.removeCallbacks(dropHotspot);
+        ui.postDelayed(dropHotspot, 120000);
+    }
 
     /** Shows the technician page (PIN pad, then the app grid) on top of the display. */
     void showTech() {
@@ -251,6 +279,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         ui.removeCallbacksAndMessages(null);
+        /* A hotspot is a setup tool, never something left running behind a closed app. */
+        if (host != null) host.netEnd();
         hideTech();
         if (web != null) { root.removeView(web); web.destroy(); }
         super.onDestroy();

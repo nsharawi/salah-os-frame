@@ -1,0 +1,252 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Salah OS — Wi-Fi</title>
+<!--
+  The page the buyer's phone opens over the frame's own hotspot.
+
+  It is served from inside the app, so it has to carry everything it needs: no fonts, no
+  frameworks, no images. It is also kept short on purpose — a phone that notices this network has
+  no internet may wander back to the house Wi-Fi, so the fewer seconds between joining and
+  finishing, the better.
+-->
+<style>
+:root{
+  --bg:#F6FBF7;--surface:#FFFFFF;--variant:#DCE5DD;--on:#191C1A;--on-variant:#414942;
+  --primary:#1C6B48;--on-primary:#FFFFFF;--container:#B9F0CF;--on-container:#002112;--err:#BA1A1A;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0E1411;--surface:#17201B;--variant:#2A332D;--on:#E4EAE6;--on-variant:#9AA69F;
+        --primary:#8FD6B8;--on-primary:#003826;--container:#005134;--on-container:#B9F0CF;--err:#FFB4A9}
+}
+*{box-sizing:border-box}
+html{font-size:112.5%}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--on);font-family:system-ui,-apple-system,Roboto,sans-serif;
+  padding:20px 16px 40px;max-width:560px;margin:0 auto;-webkit-text-size-adjust:100%}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.mark{width:26px;height:30px;border-radius:4px 4px 2px 2px;background:linear-gradient(160deg,#F9C846,#E0533D 55%,#7A3FA8);
+  clip-path:polygon(50% 0,100% 34%,100% 100%,0 100%,0 34%);flex:none}
+.brand{font-weight:600;font-size:1.1rem;flex:1}
+.lang{border:1px solid var(--variant);background:none;color:var(--primary);border-radius:8px;
+  min-height:40px;padding:0 14px;font:inherit;font-weight:500;font-size:.9rem;cursor:pointer}
+h1{font-size:1.75rem;font-weight:400;line-height:1.25;margin:0 0 6px}
+.sub{color:var(--on-variant);font-size:1rem;line-height:1.45;margin:0 0 20px}
+.card{background:var(--surface);border-radius:28px;overflow:hidden;margin-bottom:10px}
+.it{display:flex;align-items:center;gap:14px;width:100%;min-height:64px;padding:12px 20px;border:0;
+  background:var(--variant);color:inherit;font:inherit;text-align:start;cursor:pointer;border-radius:4px;margin-bottom:2px}
+.it:first-child{border-radius:28px 28px 4px 4px}
+.it:last-child{border-radius:4px 4px 28px 28px;margin-bottom:0}
+.it:only-child{border-radius:28px}
+.it:active{opacity:.75}
+.it.on{background:var(--container);color:var(--on-container)}
+.tx{flex:1;min-width:0}
+.t1{display:block;font-size:1rem;line-height:1.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;unicode-bidi:plaintext}  /* a Latin network name reads left to right even on an Arabic phone */
+.t2{display:block;font-size:.875rem;line-height:1.25rem;color:var(--on-variant);overflow-wrap:anywhere}
+.it.on .t2{color:var(--on-container)}
+.bars{flex:none;width:22px;height:22px;display:flex;align-items:flex-end;gap:2px}
+.bars i{flex:1;background:currentColor;opacity:.25;border-radius:1px}
+.bars i.f{opacity:1}
+.bars i:nth-child(1){height:30%}.bars i:nth-child(2){height:60%}.bars i:nth-child(3){height:100%}
+.lock{flex:none;font-size:.95rem;color:var(--on-variant)}
+label{display:block;font-size:.9rem;color:var(--on-variant);margin:18px 0 6px}
+input{width:100%;min-height:56px;border:1px solid var(--on-variant);border-radius:12px;background:var(--surface);
+  color:inherit;font:inherit;font-size:1rem;padding:0 16px;unicode-bidi:plaintext}
+input:focus{outline:2px solid var(--primary);border-color:transparent}
+.row{display:flex;gap:10px;align-items:center;margin-top:22px}
+.btn{flex:1;min-height:56px;border:0;border-radius:28px;background:var(--primary);color:var(--on-primary);
+  font-family:inherit;font-weight:500;font-size:1rem;cursor:pointer}
+.btn[disabled]{opacity:.45}
+.btn.ghost{background:none;color:var(--primary);flex:0 0 auto;padding:0 18px}
+.note{margin-top:18px;font-size:.95rem;line-height:1.5;color:var(--on-variant)}
+.note.bad{color:var(--err)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--variant);border-top-color:var(--primary);
+  border-radius:50%;animation:s .9s linear infinite;vertical-align:-2px;margin-inline-end:8px}
+@keyframes s{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.big{text-align:center;padding:30px 0}
+.big .tick{width:72px;height:72px;border-radius:50%;background:var(--container);color:var(--on-container);
+  font-size:2.2rem;line-height:72px;margin:0 auto 16px}
+[hidden]{display:none !important}
+</style></head><body>
+
+<div class="top"><span class="mark"></span><span class="brand">Salah OS</span>
+  <button class="lang" id="lang" type="button">العربية</button></div>
+<div id="app"></div>
+
+<script>
+(function () {
+  'use strict';
+  var AR = {
+    'Choose your Wi-Fi': 'اختر شبكة الواي فاي',
+    'Pick the network this frame should use. It only has to be done once.': 'اختر الشبكة التي سيستخدمها الإطار. تُجرى هذه الخطوة مرة واحدة فقط.',
+    'Looking for networks…': 'جارٍ البحث عن الشبكات…',
+    'No networks found.': 'لم يتم العثور على شبكات.',
+    'Search again': 'ابحث مرة أخرى',
+    'Other network…': 'شبكة أخرى…',
+    'Enter the name yourself': 'أدخل الاسم يدويًا',
+    'Network name': 'اسم الشبكة',
+    'Password': 'كلمة المرور',
+    'Show password': 'إظهار كلمة المرور',
+    'Join': 'اتصال',
+    'Back': 'رجوع',
+    'Joining…': 'جارٍ الاتصال…',
+    'Connected': 'تم الاتصال',
+    'Your frame is online. Salah OS is starting now.': 'الإطار متصل الآن. يبدأ تشغيل سلاة أو إس الآن.',
+    'You can put your phone back on your own Wi-Fi.': 'يمكنك إعادة هاتفك إلى شبكتك المعتادة.',
+    'That did not work': 'لم ينجح الاتصال',
+    'Check the password and try again.': 'تحقق من كلمة المرور وحاول مرة أخرى.',
+    'Try again': 'حاول مرة أخرى',
+    'Open': 'مفتوحة',
+    'The frame could not be reached. Make sure your phone is still on the frame’s Wi-Fi.':
+      'تعذّر الوصول إلى الإطار. تأكد من بقاء هاتفك متصلًا بشبكة الإطار.'
+  };
+  var lang = /^ar/i.test(navigator.language || '') ? 'ar' : 'en';
+  function t(s) { return lang === 'ar' && AR[s] ? AR[s] : s; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+
+  var app = document.getElementById('app'), langBtn = document.getElementById('lang');
+  var nets = null, pick = null, phase = 'scan', note = '', manual = false, timer = 0;
+
+  function dir() {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    langBtn.textContent = lang === 'ar' ? 'English' : 'العربية';
+  }
+  langBtn.onclick = function () { lang = lang === 'ar' ? 'en' : 'ar'; dir(); draw(); };
+
+  function get(path, cb) {
+    var x = new XMLHttpRequest();
+    x.open('GET', path, true);
+    x.timeout = 30000;
+    x.onload = function () { try { cb(JSON.parse(x.responseText)); } catch (e) { cb(null); } };
+    x.onerror = x.ontimeout = function () { cb(null); };
+    x.send();
+  }
+  function post(path, body, cb) {
+    var x = new XMLHttpRequest();
+    x.open('POST', path, true);
+    x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    x.timeout = 20000;
+    x.onload = function () { try { cb(JSON.parse(x.responseText)); } catch (e) { cb(null); } };
+    x.onerror = x.ontimeout = function () { cb(null); };
+    x.send(body);
+  }
+
+  function scan() {
+    phase = 'scan'; note = ''; draw();
+    get('/networks', function (d) {
+      if (!d) { phase = 'lost'; draw(); return; }
+      nets = d.networks || [];
+      phase = 'list';
+      draw();
+    });
+  }
+
+  function bars(rssi) {
+    var n = rssi > -60 ? 3 : rssi > -72 ? 2 : 1, h = '';
+    for (var i = 1; i <= 3; i++) h += '<i class="' + (i <= n ? 'f' : '') + '"></i>';
+    return '<span class="bars">' + h + '</span>';
+  }
+
+  function draw() {
+    var h = '';
+    if (phase === 'scan') {
+      h = '<h1>' + esc(t('Choose your Wi-Fi')) + '</h1><p class="sub">' + esc(t('Pick the network this frame should use. It only has to be done once.')) + '</p>'
+        + '<p class="note"><span class="spin"></span>' + esc(t('Looking for networks…')) + '</p>';
+    } else if (phase === 'list') {
+      h = '<h1>' + esc(t('Choose your Wi-Fi')) + '</h1><p class="sub">' + esc(t('Pick the network this frame should use. It only has to be done once.')) + '</p>';
+      if (!nets.length) h += '<p class="note">' + esc(t('No networks found.')) + '</p>';
+      h += '<div class="card">';
+      nets.forEach(function (n, i) {
+        h += '<button class="it" data-i="' + i + '" type="button">' + bars(n.rssi)
+          + '<span class="tx"><span class="t1">' + esc(n.ssid) + '</span>'
+          + (n.sec === 'open' ? '<span class="t2">' + esc(t('Open')) + '</span>' : '') + '</span>'
+          + (n.sec === 'open' ? '' : '<span class="lock">🔒</span>') + '</button>';
+      });
+      h += '<button class="it" data-other="1" type="button"><span class="tx"><span class="t1">' + esc(t('Other network…'))
+        + '</span><span class="t2">' + esc(t('Enter the name yourself')) + '</span></span></button></div>'
+        + '<div class="row"><button class="btn ghost" id="again" type="button">' + esc(t('Search again')) + '</button></div>';
+    } else if (phase === 'pass') {
+      h = '<h1>' + esc(manual ? t('Other network…') : pick.ssid) + '</h1>';
+      if (manual) h += '<label for="ssid">' + esc(t('Network name')) + '</label><input id="ssid" type="text" autocapitalize="none" autocorrect="off">';
+      if (!pick || pick.sec !== 'open') {
+        h += '<label for="pw">' + esc(t('Password')) + '</label>'
+          + '<input id="pw" type="password" autocapitalize="none" autocorrect="off" autocomplete="current-password">'
+          + '<div class="row" style="margin-top:10px"><label style="margin:0;display:flex;align-items:center;gap:8px;font-size:.95rem">'
+          + '<input id="see" type="checkbox" style="width:20px;min-height:20px">' + esc(t('Show password')) + '</label></div>';
+      }
+      h += '<div class="row"><button class="btn ghost" id="back" type="button">' + esc(t('Back')) + '</button>'
+        + '<button class="btn" id="join" type="button">' + esc(t('Join')) + '</button></div>';
+    } else if (phase === 'joining') {
+      h = '<h1>' + esc(t('Joining…')) + '</h1><p class="sub">' + esc(pick ? pick.ssid : '') + '</p>'
+        + '<p class="note"><span class="spin"></span>' + esc(t('Joining…')) + '</p>';
+    } else if (phase === 'done') {
+      h = '<div class="big"><div class="tick">✓</div><h1>' + esc(t('Connected')) + '</h1>'
+        + '<p class="sub">' + esc(t('Your frame is online. Salah OS is starting now.')) + '</p>'
+        + '<p class="note">' + esc(t('You can put your phone back on your own Wi-Fi.')) + '</p></div>';
+    } else if (phase === 'failed') {
+      h = '<h1>' + esc(t('That did not work')) + '</h1><p class="sub">' + esc(note || t('Check the password and try again.')) + '</p>'
+        + '<div class="row"><button class="btn" id="again2" type="button">' + esc(t('Try again')) + '</button></div>';
+    } else if (phase === 'lost') {
+      h = '<h1>' + esc(t('That did not work')) + '</h1>'
+        + '<p class="sub bad">' + esc(t('The frame could not be reached. Make sure your phone is still on the frame’s Wi-Fi.')) + '</p>'
+        + '<div class="row"><button class="btn" id="again2" type="button">' + esc(t('Try again')) + '</button></div>';
+    }
+    app.innerHTML = h;
+
+    var els = app.querySelectorAll('.it[data-i]');
+    for (var i = 0; i < els.length; i++) {
+      els[i].onclick = function () { pick = nets[+this.getAttribute('data-i')]; manual = false; phase = 'pass'; draw(); };
+    }
+    var other = app.querySelector('.it[data-other]');
+    if (other) other.onclick = function () { pick = { ssid: '', sec: 'wpa2' }; manual = true; phase = 'pass'; draw(); };
+    var a1 = app.querySelector('#again'), a2 = app.querySelector('#again2');
+    if (a1) a1.onclick = scan;
+    if (a2) a2.onclick = scan;
+    var back = app.querySelector('#back');
+    if (back) back.onclick = function () { phase = 'list'; draw(); };
+    var see = app.querySelector('#see');
+    if (see) see.onchange = function () { var p = app.querySelector('#pw'); if (p) p.type = this.checked ? 'text' : 'password'; };
+    var join = app.querySelector('#join');
+    if (join) join.onclick = send;
+    var first = app.querySelector('#ssid') || app.querySelector('#pw');
+    if (first) { try { first.focus(); } catch (e) {} }
+  }
+
+  function send() {
+    var ssidEl = app.querySelector('#ssid'), pwEl = app.querySelector('#pw');
+    var ssid = manual ? (ssidEl ? ssidEl.value.trim() : '') : pick.ssid;
+    if (!ssid) { if (ssidEl) ssidEl.focus(); return; }
+    var pass = pwEl ? pwEl.value : '';
+    pick = { ssid: ssid, sec: pick && pick.sec ? pick.sec : 'wpa2' };
+    phase = 'joining'; draw();
+    post('/join', 'ssid=' + encodeURIComponent(ssid) + '&sec=' + encodeURIComponent(pick.sec) + '&pass=' + encodeURIComponent(pass),
+      function (d) {
+        if (!d || !d.ok) { phase = 'failed'; note = d && d.why ? d.why : ''; draw(); return; }
+        watch(0);
+      });
+  }
+
+  /* The frame answers over the hotspot while it joins the house network, because the two radios
+     are separate. Once it is online it takes the hotspot down, so a request that stops being
+     answered right after "connected" is success, not failure. */
+  function watch(tries) {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      get('/state', function (d) {
+        if (!d) {
+          if (phase === 'done') return;
+          if (tries > 3) { phase = 'done'; draw(); return; }   /* the hotspot went away: it worked */
+          watch(tries + 1); return;
+        }
+        if (d.state === 'connected') { phase = 'done'; draw(); return; }
+        if (d.state === 'failed') { phase = 'failed'; note = d.note || ''; draw(); return; }
+        watch(0);
+      });
+    }, 1500);
+  }
+
+  dir();
+  scan();
+})();
+</script></body></html>

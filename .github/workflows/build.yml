@@ -32,6 +32,9 @@ jobs:
           name: salah-os-apk
           path: app/build/outputs/apk/debug/*.apk
       - name: Publish APK to the apk branch
+        # Only from main. Every frame updates itself from this branch, so a build made from a
+        # work branch to test on one frame must never become everyone's update.
+        if: github.ref == 'refs/heads/main'
         run: |
           mkdir -p /tmp/out && cp app/build/outputs/apk/debug/app-debug.apk /tmp/out/salah-os.apk
           git config user.name "github-actions"

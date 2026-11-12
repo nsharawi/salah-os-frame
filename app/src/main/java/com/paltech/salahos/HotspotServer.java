@@ -247,10 +247,17 @@ final class HotspotServer {
     private static final String[] SEC = { "open", "owe", "wep", "wpa2", "wpa3" };
 
     /**
-     * Reads `cmd wifi list-scan-results`. The columns are aligned by padding and an SSID may hold
-     * spaces, so the BSSID is the landmark: a MAC address is the second field, whatever came
-     * before it is the name, and what follows holds the signal and the security.
-     * Strongest wins where a network appears more than once.
+     * Reads `cmd wifi list-scan-results`, whichever way round this ROM prints it.
+     *
+     * There are two layouts in the wild and the frame uses the second:
+     *
+     *   SSID                 BSSID              RSSI  FREQ ...
+     *   BSSID                FREQ   RSSI  AGE   SSID             FLAGS
+     *
+     * The BSSID is the landmark either way. With nothing before it the row is the second kind,
+     * and the name sits after three numbers and before the flags, which is the only part of the
+     * line that can hold spaces. Reading it the first way only cost us every network in the
+     * house: the frame reported none in range while standing in the middle of seven.
      */
     static LinkedHashMap<String, int[]> parseScan(String raw) {
         Pattern mac = Pattern.compile("\\b([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}\\b");
@@ -258,23 +265,46 @@ final class HotspotServer {
         for (String line : raw.split("\r?\n")) {
             Matcher m = mac.matcher(line);
             if (!m.find()) continue;
-            String ssid = line.substring(0, m.start()).trim();
-            if (ssid.length() == 0 || ssid.length() > 32) continue;
-            String rest = line.substring(m.end());
-            String[] f = rest.trim().split("\\s+");
+            String before = line.substring(0, m.start()).trim();
+            String after = line.substring(m.end());
+
+            String ssid, caps;
             int rssi = -99;
-            for (String x : f) {
-                try {
-                    int v = Integer.parseInt(x);
-                    if (v < 0 && v > -120) { rssi = v; break; }
-                } catch (Throwable ignored) { }
+            if (before.length() == 0) {
+                int flags = after.indexOf('[');
+                caps = flags >= 0 ? after.substring(flags) : "";
+                String mid = (flags >= 0 ? after.substring(0, flags) : after);
+                /* three numbers, then the name: walk past them so a name with spaces survives */
+                int at = 0, taken = 0;
+                while (taken < 3 && at < mid.length()) {
+                    while (at < mid.length() && Character.isWhitespace(mid.charAt(at))) at++;
+                    int from = at;
+                    while (at < mid.length() && !Character.isWhitespace(mid.charAt(at))) at++;
+                    if (at > from) {
+                        if (taken == 1) { try { rssi = Integer.parseInt(mid.substring(from, at)); } catch (Throwable ignored) { } }
+                        taken++;
+                    }
+                }
+                if (taken < 3 || at >= mid.length()) continue;
+                ssid = mid.substring(at).trim();
+            } else {
+                ssid = before;
+                caps = after;
+                for (String x : after.trim().split("\\s+")) {
+                    try {
+                        int v = Integer.parseInt(x);
+                        if (v < 0 && v > -120) { rssi = v; break; }
+                    } catch (Throwable ignored) { }
+                }
             }
+            if (ssid.length() == 0 || ssid.length() > 32) continue;
+
             int sec = 0;
-            String caps = rest.toUpperCase();
-            if (caps.contains("WEP")) sec = 2;
-            if (caps.contains("OWE")) sec = 1;
-            if (caps.contains("PSK") || caps.contains("WPA2") || caps.contains("RSN")) sec = 3;
-            if (caps.contains("SAE") || caps.contains("WPA3")) sec = 4;
+            String up = caps.toUpperCase();
+            if (up.contains("WEP")) sec = 2;
+            if (up.contains("OWE")) sec = 1;
+            if (up.contains("PSK") || up.contains("WPA2") || up.contains("RSN")) sec = 3;
+            if (up.contains("SAE") || up.contains("WPA3")) sec = 4;
             int[] had = best.get(ssid);
             if (had == null || rssi > had[0]) best.put(ssid, new int[] { rssi, sec });
         }

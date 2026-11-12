@@ -516,9 +516,11 @@ public class HostControl {
               address on it and nothing handing any out. So the frame gives itself the address at
               the top of the subnet and answers DHCP, DNS and HTTP on it by itself.
             */
-            outShell("ip addr flush dev " + iface + " 2>&1; "
+            String addr = outShell("ip addr flush dev " + iface + " 2>&1; "
                    + "ip addr add " + DhcpServer.SELF + "/24 dev " + iface + " 2>&1; "
-                   + "ip link set " + iface + " up 2>&1");
+                   + "ip link set " + iface + " up 2>&1; "
+                   + "ip -o -4 addr show dev " + iface + " 2>&1");
+            Log.i(TAG, "address on " + iface + ": " + (addr == null ? "" : addr.trim()));
 
             if (dhcp == null) dhcp = new DhcpServer();
             dhcp.start();

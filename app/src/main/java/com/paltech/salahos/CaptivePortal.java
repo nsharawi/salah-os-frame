@@ -23,7 +23,9 @@ import java.net.InetAddress;
  */
 final class CaptivePortal {
     private static final String TAG = "SalahHotspot";
-    private static final int DNS_PORT = 5353;   /* 53 is privileged; the firewall rule bridges it */
+    /* Not 5353: Android's own mDNS service already holds that one, and the bind failed, which
+       took the firewall rules down with it and left the phone with no address at all. */
+    private static final int DNS_PORT = 15353;
 
     private final HostControl host;
     private DatagramSocket sock;
@@ -41,17 +43,33 @@ final class CaptivePortal {
         try {
             String[] p = ip.split("\\.");
             for (int i = 0; i < 4; i++) answer[i] = (byte) Integer.parseInt(p[i]);
+        } catch (Throwable t) {
+            Log.w(TAG, "bad access point address " + ip + ": " + t);
+            return;
+        }
+
+        /*
+          The firewall rules go in first and on their own. They are what carry DHCP to the app,
+          which is how the phone gets an address at all; the name answering below is only what
+          makes the setup page open by itself. Tying the two together once meant a failure in the
+          second quietly cancelled the first, and the phone joined a network that gave it nothing.
+        */
+        running = true;
+        rules("-A");
+
+        try {
             sock = new DatagramSocket(DNS_PORT);
             sock.setSoTimeout(1000);
-            running = true;
             thread = new Thread(new Runnable() { @Override public void run() { loop(); } }, "salah-dns");
             thread.setDaemon(true);
             thread.start();
-            rules("-A");
             Log.i(TAG, "captive portal up on " + ip + " via " + iface);
         } catch (Throwable t) {
-            Log.w(TAG, "captive portal could not start: " + t);
-            stop();
+            /* The phone still gets an address and the page still answers; it just has to be
+               opened by hand. Worth knowing about, not worth taking the hotspot down for. */
+            Log.w(TAG, "names will not be answered, so setup will not open by itself: " + t);
+            try { if (sock != null) sock.close(); } catch (Throwable ignored) { }
+            sock = null;
         }
     }
 

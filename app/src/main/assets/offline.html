@@ -22,21 +22,21 @@
 html,body{height:100%;margin:0;background:var(--bg);color:var(--on);
   font:400 16px/24px system-ui,"Segoe UI",Roboto,sans-serif;-webkit-user-select:none;user-select:none}
 
-/* One centred column, read from across a room: the shape a Google Hub or a Nest display uses to
-   set itself up. The pieces are the wizard's — same cards, same radios, same pill — stacked
-   rather than split, so this and the wizard that follows still look like one program. */
-.wz{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
-    justify-content:center;text-align:center;padding:40px}
-.wz.on{display:flex}
-.wzl,.wzr,.wzf{display:flex;flex-direction:column;align-items:center;width:100%}
-.lg{height:104px;width:auto;margin:0 0 28px}
-h1{margin:0 0 10px;font-size:40px;line-height:48px;font-weight:400;letter-spacing:-.5px}
-.p{margin:0;font-size:17px;line-height:26px;color:var(--dim);max-width:560px}
+/* The setup wizard's own frame: a quiet left panel carrying the logo and the question, the answer
+   on the right, one pill button in the corner. The same shape the wizard that follows uses, so a
+   new frame's first screens and its setup read as one program rather than two. */
+.wz{position:absolute;inset:0;display:none;grid-template-columns:minmax(0,5fr) minmax(0,6fr);
+    grid-template-rows:minmax(0,1fr) auto}
+.wz.on{display:grid}
+.wzl{padding:24px 24px 0 48px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.lg{height:140px;width:auto;align-self:flex-start;margin:0 0 40px}
+h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacing:-.5px}
+.p{margin:0;font-size:16px;line-height:24px;color:var(--dim);max-width:492px}
 .p b{font-weight:600;color:var(--on)}
-.wzr{margin-top:28px}
-.wzi{width:100%;max-width:460px}
-#hot .wzi{max-width:none;display:flex;justify-content:center}
-.wzf{margin-top:28px}
+.wzr{display:flex;align-items:center;padding:24px 48px 0 12px;min-width:0}
+.wzi{width:100%}
+#hot .wzi{display:flex;justify-content:center}
+.wzf{grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:16px;padding:16px 48px 40px}
 
 /* a group of choices, Android Settings style: outer corners 28, inner 4, a 2 px gap */
 .grp{display:flex;flex-direction:column;gap:2px}
@@ -60,22 +60,25 @@ h1{margin:0 0 10px;font-size:40px;line-height:48px;font-weight:400;letter-spacin
 .btn.ghost{background:transparent;color:var(--p);min-width:0;padding:0 20px}
 
 /* the hotspot code, and the quieter bits */
-.qr{width:320px;height:320px;background:#fff;border-radius:28px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.qr{width:300px;height:300px;background:#fff;border-radius:28px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .qr svg{width:100%;height:100%;display:block}
-.name{margin:14px 0 0;font-size:24px;line-height:1.2;font-weight:600;color:var(--p);letter-spacing:.5px;direction:ltr}
+.name{margin:20px 0 0;font-size:24px;line-height:1.2;font-weight:600;color:var(--p);letter-spacing:.5px;direction:ltr}
 .card{background:var(--row);border-radius:28px;padding:28px 32px;max-width:560px}
 .s{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--dim)}
 .d{width:8px;height:8px;border-radius:50%;background:var(--p);animation:pls 1.6s ease-in-out infinite;flex:none}
 @keyframes pls{50%{opacity:.25}}
 .why{margin:16px 0 0;font-size:14px;line-height:1.5;color:#8C1D18}
 @media (prefers-reduced-motion:reduce){.d{animation:none}*{transition:none !important}}
-@media (max-width:900px),(max-height:620px){
-  .wz{padding:24px}
-  .lg{height:72px;margin-bottom:18px}
-  h1{font-size:30px;line-height:36px}
-  .p{font-size:15px;line-height:23px}
+@media (max-width:900px),(max-height:560px){
+  .wz.on{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) auto;text-align:center}
+  .wzl{padding:28px 24px 0;justify-content:flex-end}
+  .lg{align-self:center;height:92px;margin-bottom:20px}
+  h1{font-size:32px;line-height:38px}
+  .p{margin-inline:auto}
+  .wzr{padding:20px 24px 0;justify-content:center}
+  .wzf{justify-content:center;padding:16px 24px 28px}
   .qr{width:230px;height:230px}
-  .wzr,.wzf{margin-top:20px}
+}
 }
 
 </style></head><body>

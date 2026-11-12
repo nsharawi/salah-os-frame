@@ -82,7 +82,9 @@ final class DhcpServer {
                 chan = DatagramChannel.open(StandardProtocolFamily.INET);
                 chan.setOption(StandardSocketOptions.SO_REUSEADDR, Boolean.TRUE);
                 chan.setOption(StandardSocketOptions.SO_BROADCAST, Boolean.TRUE);
-                chan.bind(new InetSocketAddress(PORT));
+                /* By address, not by port alone: a bare port gives the IPv6 wildcard, which an
+                   INET-family channel refuses outright. */
+                chan.bind(new InetSocketAddress(InetAddress.getByName("0.0.0.0"), PORT));
                 chan.configureBlocking(false);
                 sel = Selector.open();
                 chan.register(sel, SelectionKey.OP_READ);

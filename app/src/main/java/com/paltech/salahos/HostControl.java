@@ -522,10 +522,20 @@ public class HostControl {
               address on it and nothing handing any out. So the frame gives itself the address at
               the top of the subnet and answers DHCP, DNS and HTTP on it by itself.
             */
+            /*
+              The address, and then a routing rule for the subnet it is on.
+              Android routes an app's traffic through the network that app is bound to, and with
+              the frame's own Wi-Fi down there is none - so answering the phone failed with
+              "network is unreachable" even though the phone was sitting on the other end of a
+              working access point. The rule points anything addressed to this subnet at the main
+              table, where the interface's own route lives.
+            */
             String addr = outShell("ip addr flush dev " + iface + " 2>&1; "
                    + "ip addr add " + DhcpServer.SELF + "/24 dev " + iface + " 2>&1; "
                    + "ip link set " + iface + " up 2>&1; "
-                   + "ip -o -4 addr show dev " + iface + " 2>&1");
+                   + "ip rule del to " + DhcpServer.NET + ".0/24 2>/dev/null; "
+                   + "ip rule add to " + DhcpServer.NET + ".0/24 lookup main pref 11000 2>&1; "
+                   + "ip -o -4 addr show dev " + iface + " 2>&1; ip rule list 2>&1 | head -8");
             Log.i(TAG, "address on " + iface + ": " + (addr == null ? "" : addr.trim()));
 
             /*
@@ -576,7 +586,8 @@ public class HostControl {
         apUrl = "";
         if (!"ready".equals(netPhase)) { netPhase = ""; return; }
         netPhase = "";
-        try { outShell("cmd wifi stop-softap"); } catch (Throwable ignored) { }
+        try { outShell("ip rule del to " + DhcpServer.NET + ".0/24 2>/dev/null; cmd wifi stop-softap"); }
+        catch (Throwable ignored) { }
     }
 
     boolean hotspotUp() { return server != null && server.isRunning(); }

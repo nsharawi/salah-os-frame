@@ -150,6 +150,11 @@ final class CaptivePortal {
         }
 
         StringBuilder cmd = new StringBuilder();
+        /* an earlier build sent port 67 to a redirect, which cannot work and only gets in the way */
+        for (int k = 0; k < 6; k++) {
+            cmd.append("iptables -t nat -D PREROUTING ").append(in)
+               .append("-p udp --dport 67 -j REDIRECT --to-ports ").append(DhcpServer.ALT).append(" 2>/dev/null; ");
+        }
         for (String[] r : want) {
             String table = "nat", chain = r[0];
             int colon = chain.indexOf(':');

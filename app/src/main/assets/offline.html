@@ -64,19 +64,21 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
 .qr{width:300px;height:300px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
 .qr svg{width:100%;height:100%;display:block}
 .name{margin:20px 0 0;font-size:24px;line-height:1.2;font-weight:600;color:var(--p);letter-spacing:.5px;unicode-bidi:plaintext}
-/* Material's indeterminate linear indicator: a track with two runs crossing it, which says
-   "working" without a sentence explaining that it is working. */
-.lin{position:relative;height:4px;border-radius:2px;background:var(--line);overflow:hidden;width:100%;max-width:560px}
-.lin:before,.lin:after{content:"";position:absolute;inset-block:0;background:var(--p);border-radius:2px}
-.lin:before{animation:l1 2s cubic-bezier(.65,.815,.735,.395) infinite}
-.lin:after{animation:l2 2s cubic-bezier(.165,.84,.44,1) infinite;animation-delay:1.15s}
-@keyframes l1{0%{inset-inline-start:-35%;inset-inline-end:100%}
-             60%{inset-inline-start:100%;inset-inline-end:-90%}
-            100%{inset-inline-start:100%;inset-inline-end:-90%}}
-@keyframes l2{0%{inset-inline-start:-200%;inset-inline-end:100%}
-             60%{inset-inline-start:107%;inset-inline-end:-8%}
-            100%{inset-inline-start:107%;inset-inline-end:-8%}}
-@media (prefers-reduced-motion:reduce){.lin:before{animation:none;inset-inline:0}.lin:after{display:none}}
+/* Material's indeterminate circular indicator: the ring turns while the arc inside it grows and
+   shrinks. The circle is 125.6 units around, which is where the dash lengths come from. The arc
+   never shrinks below a sixth of the ring - any thinner and from across a room it reads as a
+   stray dot rather than something in motion. */
+.spin{width:72px;height:72px;animation:turn 1.6s linear infinite}
+.spin circle{fill:none;stroke:var(--p);stroke-width:4;stroke-linecap:round;
+             animation:arc 1.4s ease-in-out infinite;transform-origin:center}
+@keyframes turn{to{transform:rotate(360deg)}}
+@keyframes arc{
+  0%{stroke-dasharray:22 104;stroke-dashoffset:0}
+ 50%{stroke-dasharray:88 38;stroke-dashoffset:-18}
+100%{stroke-dasharray:22 104;stroke-dashoffset:-124}}
+@media (prefers-reduced-motion:reduce){
+  .spin{animation:none}
+  .spin circle{animation:none;stroke-dasharray:88 38}}
 .s{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--dim)}
 .why{margin:16px 0 0;font-size:14px;line-height:1.5;color:#8C1D18}
 @media (prefers-reduced-motion:reduce){.d{animation:none}*{transition:none !important}}
@@ -119,7 +121,9 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     <p class="p" id="wp"></p>
     <p class="why" id="why" hidden></p>
   </div>
-  <div class="wzr"><div class="wzi"><div class="lin" role="progressbar" aria-label="Working"></div></div></div>
+  <div class="wzr"><div class="wzi" style="display:flex;justify-content:center">
+    <svg class="spin" viewBox="0 0 48 48" role="progressbar" aria-label="Working"><circle cx="24" cy="24" r="20"/></svg>
+  </div></div>
   <div class="wzf"><button class="btn ghost" id="wifi" type="button"></button></div>
 </section>
 

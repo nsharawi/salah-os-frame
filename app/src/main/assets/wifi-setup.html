@@ -54,13 +54,16 @@ input:focus{outline:2px solid var(--primary);border-color:transparent}
 .row{display:flex;gap:10px;align-items:center;margin-top:22px}
 .btn{flex:1;min-height:56px;border:0;border-radius:28px;background:var(--primary);color:var(--on-primary);
   font-family:inherit;font-weight:500;font-size:1rem;cursor:pointer}
-/* Six figures typed from across the room: the biggest step on the scale, spaced so a mistyped
-   one is visible, and in tabular figures so the box does not breathe as it fills. */
+/* Six figures copied off a screen across the room. Grouped three and three as they are typed,
+   which is how the frame shows them and how a person holds a number in their head on the way
+   over. Tabular figures so the box does not breathe as it fills, and always left to right - a
+   sequence to copy is not text and does not mirror. */
 .pin{width:100%;min-height:72px;border:1px solid var(--on-variant);border-radius:4px;
-  background:var(--surface);color:inherit;font:inherit;font-size:32px;line-height:40px;
-  font-weight:500;text-align:center;letter-spacing:.35em;margin-inline-start:.35em;
+  background:var(--surface);color:var(--primary);font:inherit;font-size:32px;line-height:40px;
+  font-weight:500;text-align:center;letter-spacing:.3em;margin-inline-start:.3em;
   font-variant-numeric:tabular-nums;direction:ltr;padding:0 8px}
 .pin:focus{outline:2px solid var(--primary);border-color:transparent}
+.pin::placeholder{color:var(--on-variant);opacity:.45}
 a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none}
 .btn[disabled]{opacity:.45}
 .btn.ghost{background:none;color:var(--primary);flex:0 0 auto;padding:0 18px}
@@ -208,7 +211,7 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
         + '<p class="sub">' + esc(t('It is on the frame\u2019s screen, under the square.')) + '</p>'
         + (note ? '<p class="note bad">' + esc(note) + '</p>' : '')
         + '<input id="pin" type="text" inputmode="numeric" autocomplete="one-time-code" '
-        + 'maxlength="6" class="pin" aria-label="' + esc(t('Enter the code')) + '">'
+        + 'maxlength="7" class="pin" placeholder="000 000" aria-label="' + esc(t('Enter the code')) + '">'
         + '<div class="row"><button class="btn" id="unlock" type="button">'
         + esc(t('Continue')) + '</button></div>';
     } else if (phase === 'list') {
@@ -275,8 +278,9 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     if (pin) {
       /* Nothing but digits, and six of them opens the door without a second tap. */
       pin.oninput = function () {
-        this.value = this.value.replace(/\D/g, '').slice(0, 6);
-        if (this.value.length === 6) sendCode();
+        var v = this.value.replace(/\D/g, '').slice(0, 6);
+        this.value = v.length > 3 ? v.slice(0, 3) + ' ' + v.slice(3) : v;
+        if (v.length === 6) sendCode();
       };
       try { pin.focus({ preventScroll: true }); } catch (e) { }
     }

@@ -80,10 +80,16 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
 .qr svg rect{fill:none}
 .qr svg path{fill:var(--on)}
 .qcap{font-size:22px;line-height:28px;color:var(--dim);text-align:center}
-/* The code is read off this screen from wherever the buyer is standing and typed on a phone, so
-   it is set large, spaced, and in figures that do not argue with each other. */
-.code{font-size:45px;line-height:52px;font-weight:500;color:var(--on);text-align:center;
-  letter-spacing:.22em;margin-inline-start:.22em;font-variant-numeric:tabular-nums;direction:ltr}
+/* The code is read off this screen from wherever the buyer is standing and typed into a phone
+   one figure at a time, so it is drawn one figure at a time: a cell each, grouped three and
+   three, which is how a person reads a number back to themselves. Always left to right - a
+   sequence of figures to copy is not text and does not mirror. */
+.code{display:flex;gap:10px;direction:ltr;align-items:center}
+.code .cell{width:64px;height:84px;border-radius:16px;background:var(--row);
+  display:flex;align-items:center;justify-content:center;
+  font-size:45px;line-height:52px;font-weight:500;color:var(--on);
+  font-variant-numeric:tabular-nums}
+.code .sp{width:14px}
 .codecap{font-size:22px;line-height:28px;color:var(--dim);text-align:center;margin-top:-10px}
 .name{margin:0;font-size:24px;line-height:32px;font-weight:400;color:var(--p);letter-spacing:0;unicode-bidi:plaintext}
 /* Material's indeterminate circular indicator: the ring turns while the arc inside it grows and
@@ -300,7 +306,12 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
         id('qcap').textContent = t('Scan to connect Wi-Fi');
         var code = id('code'), ccap = id('codecap');
         if (d.code) {
-          code.textContent = d.code;
+          var cells = '';
+          for (var ci = 0; ci < d.code.length; ci++) {
+            if (ci === 3) cells += '<span class="sp"></span>';
+            cells += '<span class="cell">' + d.code.charAt(ci) + '</span>';
+          }
+          code.innerHTML = cells;
           ccap.textContent = t('Then enter this code on your phone');
           code.hidden = false; ccap.hidden = false;
         } else { code.hidden = true; ccap.hidden = true; }

@@ -141,9 +141,23 @@ final class CaptivePortal {
             want.add(new String[] { "POSTROUTING", out + "-p udp --sport " + DhcpServer.ALT
                                     + " -j SNAT --to-source " + DhcpServer.SELF + ":67" });
         }
-        if (web != null && web.fellBack()) {
-            want.add(new String[] { "PREROUTING", in + "-p tcp --dport 80 -j REDIRECT --to-ports " + HotspotServer.ALT });
-        }
+        /*
+          Everything the phone sends to port 80 comes here, wherever it was addressed.
+
+          This used to be done only when the server had been pushed off port 80, on the reasoning
+          that a server already on 80 needs no help. It does. Nothing was catching port 80 when
+          the bind succeeded, and the phone's probe arrived only because our DNS had answered
+          every name with this address - which is luck, not design. A phone using private DNS
+          (DoT or DoH) never asks us, and one with the probe host already cached does not ask
+          either; both then send port 80 to an address with no route, hear nothing back, and
+          decide this network is simply broken.
+
+          A phone that is already addressing this frame is unaffected: rewriting a destination to
+          the value it already holds does nothing.
+        */
+        int webPort = (web != null && web.fellBack()) ? HotspotServer.ALT : HotspotServer.PORT;
+        want.add(new String[] { "PREROUTING", in + "-p tcp --dport 80 -j DNAT --to-destination "
+                                + DhcpServer.SELF + ":" + webPort });
 
         /*
           Every rule this app has ever installed is removed first, not only the ones it wants
@@ -157,6 +171,8 @@ final class CaptivePortal {
             { "PREROUTING",  in + "-p udp --dport 67 -j REDIRECT --to-ports " + DhcpServer.ALT },
             { "POSTROUTING", out + "-p udp --sport " + DhcpServer.ALT + " -j SNAT --to-source " + DhcpServer.SELF + ":67" },
             { "PREROUTING",  in + "-p tcp --dport 80 -j REDIRECT --to-ports " + HotspotServer.ALT },
+            { "PREROUTING",  in + "-p tcp --dport 80 -j DNAT --to-destination " + DhcpServer.SELF + ":" + HotspotServer.ALT },
+            { "PREROUTING",  in + "-p tcp --dport 80 -j DNAT --to-destination " + DhcpServer.SELF + ":" + HotspotServer.PORT },
             { "filter:INPUT", "-i " + iface + " -j ACCEPT" }
         };
         StringBuilder cmd = new StringBuilder();

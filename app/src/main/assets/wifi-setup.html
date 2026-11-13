@@ -118,6 +118,8 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     'Tries left:': 'المحاولات المتبقية:',
     'Too many tries. Restart the frame to try again.': 'عدد المحاولات كبير. أعد تشغيل الإطار للمحاولة من جديد.',
     'Finish setup on this phone': 'أكمل الإعداد من هذا الهاتف',
+    'Finish on your phone: point your camera at the code on the frame.':
+      'أكمل الإعداد من هاتفك: وجّه الكاميرا إلى الرمز الظاهر على الإطار.',
     'Put your phone back on your own Wi-Fi first, then tap the button.':
       'أعد هاتفك إلى شبكتك أولًا، ثم اضغط الزر.',
     'Networks': 'الشبكات',
@@ -156,6 +158,25 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     x.onload = function () { try { cb(JSON.parse(x.responseText)); } catch (e) { cb(null); } };
     x.onerror = x.ontimeout = function () { cb(null); };
     x.send(body);
+  }
+
+  /* Can this page reach the open internet? In the captive-portal window the answer is no and
+     stays no. While the hotspot is still up the frame answers port 80 and nothing else, so an
+     https request aimed at it is refused rather than hijacked: there is no false yes here. */
+  var netOk = false, reachT = 0;
+  function reach() {
+    if (netOk || reachT) return;
+    var ping = function () {
+      var im = new Image();
+      im.onload = function () {
+        if (netOk) return;
+        netOk = true; clearInterval(reachT); reachT = 0;
+        if (phase === 'done') draw();
+      };
+      im.src = 'https://salah-os.web.app/icons/icon-192.png?x=' + Date.now();
+    };
+    reachT = setInterval(ping, 4000);
+    ping();
   }
 
   function scan() {
@@ -321,18 +342,22 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
       h = '<h1>' + esc(t('Joining…')) + '</h1><p class="sub">' + esc(pick ? pick.ssid : '') + '</p>'
         + '<p class="note"><span class="spin"></span>' + esc(t('Joining…')) + '</p>';
     } else if (phase === 'done') {
-      /* Carrying on here beats carrying on at the frame: choosing a masjid means typing, and the
-         thing on the wall is further away than the thing in their hand. The frame hands over a
-         link to the setup session it is about to open, so the same phone picks up where it left
-         off and no second code is ever scanned. The phone has to be back on a network of its own
-         first, which is why this is a button they press and not a page that opens by itself. */
+      /* This page is living inside the phone's captive-portal window, and that window stays bound
+         to the frame's hotspot for as long as it is open. A link to the open internet from here
+         cannot load - not after the hotspot goes, not after the phone is back on the house Wi-Fi,
+         not ever - so offering one was offering a dead end. The handover goes back to the frame
+         instead: it is on the house network now, and it puts the same setup session on its screen
+         as a code to scan. If this page does turn out to reach the internet - opened by hand in a
+         real browser, or an iPhone sheet that is not bound - the button appears in its place. */
       h = '<div class="big"><div class="tick"><svg viewBox="0 0 24 24" aria-hidden="true">'
         + '<path d="M5 12.5l5 5L19 8"/></svg></div><h1>' + esc(t('Connected')) + '</h1>'
         + '<p class="sub">' + esc(t('Your frame is online. Salah OS is starting now.')) + '</p>';
-      if (go) h += '<div class="row"><a class="btn" href="' + esc(go) + '">'
-        + esc(t('Finish setup on this phone')) + '</a></div>'
-        + '<p class="note">' + esc(t('Put your phone back on your own Wi-Fi first, then tap the button.')) + '</p></div>';
+      if (go && netOk) h += '<div class="row"><a class="btn" href="' + esc(go) + '">'
+        + esc(t('Finish setup on this phone')) + '</a></div></div>';
+      else if (go) h += '<p class="note">'
+        + esc(t('Finish on your phone: point your camera at the code on the frame.')) + '</p></div>';
       else h += '<p class="note">' + esc(t('You can put your phone back on your own Wi-Fi.')) + '</p></div>';
+      reach();
     } else if (phase === 'failed') {
       h = '<h1>' + esc(t('That did not work')) + '</h1><p class="sub">' + esc(note || t('Check the password and try again.')) + '</p>'
         + '<div class="row"><button class="btn" id="again2" type="button">' + esc(t('Try again')) + '</button></div>';

@@ -172,16 +172,35 @@ final class HotspotServer {
         if ("/qr.js".equals(path)) { sendAsset(out, "qr.js"); return; }
 
         /*
-          Anything else - above all the connectivity check a phone makes the moment it joins - is
-          answered with the setup page itself rather than a redirect to it.
+          Android's way out of a network it has just joined.
 
-          Both say "this is a sign-in network". The difference is what the phone has in hand when
-          it decides what to do: given a page, some phones put it straight on screen, while a
-          redirect more often just raises the notification and waits to be tapped. iPhones open
-          it by themselves either way; on Android the notification is the normal path and the tap
-          is the same one hotel Wi-Fi asks for.
+          It fetches one of these and expects an empty 204. Anything else means a sign-in network -
+          but knowing that is not the same as having somewhere to go. Android takes the address to
+          open from the Location header of this very answer, so a page returned here, however
+          correct it looks, leaves it with nothing to launch: it raises the notification and waits
+          to be tapped. That tap was the one the buyer kept having to make. A redirect gives it the
+          address, and it opens the page itself.
+
+          iPhones never needed this - they judge by whether the answer is their own success page
+          and open their sheet when it is not, which is why the iPhone worked while the Pixel did
+          not - but a redirect suits them as well, so everything else still gets the page.
         */
+        if ("/generate_204".equals(path) || "/gen_204".equals(path)) { redirect(out, HOME); return; }
+
         sendAsset(out, "wifi-setup.html");
+    }
+
+    /** Where a phone is sent to sign in. Port 80 whatever the server fell back to: the firewall. */
+    private static final String HOME = "http://" + DhcpServer.SELF + "/";
+
+    private void redirect(OutputStream out, String where) throws IOException {
+        String headers = "HTTP/1.1 302 Found\r\n"
+                + "Location: " + where + "\r\n"
+                + "Content-Length: 0\r\n"
+                + "Cache-Control: no-store\r\n"
+                + "Connection: close\r\n\r\n";
+        out.write(headers.getBytes("UTF-8"));
+        out.flush();
     }
 
     private void send(OutputStream out, int code, String type, String payload) throws IOException {

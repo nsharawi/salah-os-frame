@@ -31,7 +31,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--on);
 .wz.on{display:grid}
 .wzl{padding-block:24px 0;padding-inline:48px 24px;display:flex;flex-direction:column;justify-content:center;min-width:0}
 .lg{height:140px;width:auto;align-self:flex-start;margin:0 0 40px}
-h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacing:-.5px}
+h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacing:0}
 .p{margin:0;font-size:16px;line-height:24px;color:var(--dim);max-width:492px}
 .p b{font-weight:600;color:var(--on)}
 .wzr{display:flex;align-items:center;padding-block:24px 0;padding-inline:12px 48px;min-width:0}
@@ -53,8 +53,14 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
 .it.on .rad:after{content:"";width:10px;height:10px;border-radius:50%;background:var(--p)}
 .hl{font-size:16px;line-height:24px}
 
+/*
+  Sizes here are Material 3 type-scale steps, not numbers that looked right: Display Medium
+  45/52 for the heading, Headline Small 24/32 for the frame's name, Title Large 22/28 under the
+  code, Body Large 16/24 for prose and Body Medium 14/20 for the quiet lines. M3's tracking
+  figures are drawn for Roboto, so they are left off rather than borrowed onto Cairo.
+*/
 /* the one pill button */
-.btn{height:60px;min-width:175px;padding:0 32px;border:0;border-radius:24px;background:var(--p);
+.btn{height:60px;min-width:175px;padding:0 32px;border:0;border-radius:30px;background:var(--p);
      color:var(--on-p);font:500 14px/20px inherit;font-family:inherit;cursor:pointer;
      transition:transform .12s var(--em)}
 .btn:active{transform:scale(.98)}
@@ -70,8 +76,8 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
 .qr svg{width:100%;height:100%;display:block}
 .qr svg rect{fill:none}
 .qr svg path{fill:var(--on)}
-.qcap{font-size:1.25rem;color:var(--dim);text-align:center}
-.name{margin:20px 0 0;font-size:24px;line-height:1.2;font-weight:600;color:var(--p);letter-spacing:.5px;unicode-bidi:plaintext}
+.qcap{font-size:22px;line-height:28px;color:var(--dim);text-align:center}
+.name{margin:20px 0 0;font-size:24px;line-height:32px;font-weight:400;color:var(--p);letter-spacing:0;unicode-bidi:plaintext}
 /* Material's indeterminate circular indicator: the ring turns while the arc inside it grows and
    shrinks. The circle is 125.6 units around, which is where the dash lengths come from. The arc
    never shrinks below a sixth of the ring - any thinner and from across a room it reads as a
@@ -95,14 +101,14 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
   .spin{animation:none}
   .spin circle{animation:none;stroke-dasharray:88 38}
   .tick path{animation:none;stroke-dashoffset:0}}
-.s{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--dim)}
-.why{margin:16px 0 0;font-size:14px;line-height:1.5;color:#8C1D18}
+.s{display:flex;align-items:center;gap:12px;font-size:14px;line-height:20px;color:var(--dim)}
+.why{margin:16px 0 0;font-size:14px;line-height:20px;color:#8C1D18}
 @media (prefers-reduced-motion:reduce){.d{animation:none}*{transition:none !important}}
 @media (max-width:900px),(max-height:560px){
   .wz.on{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) auto;text-align:center}
   .wzl{padding-block:28px 0;padding-inline:24px;justify-content:flex-end}
   .lg{align-self:center;height:92px;margin-bottom:20px}
-  h1{font-size:32px;line-height:38px}
+  h1{font-size:32px;line-height:40px}
   .p{margin-inline:auto}
   .wzr{padding-block:20px 0;padding-inline:24px;justify-content:center}
   .wzf{justify-content:center;padding-block:16px 28px;padding-inline:24px}

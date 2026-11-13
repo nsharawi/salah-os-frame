@@ -23,13 +23,11 @@ html{font-size:100%}   /* a phone held in the hand, not a panel read across a ro
 html,body{margin:0;min-height:100%}
 body{background:var(--bg);color:var(--on);font-family:system-ui,-apple-system,Roboto,sans-serif;
   padding:16px 16px 32px;max-width:560px;margin:0 auto;-webkit-text-size-adjust:100%}
-.top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.mark{height:26px;width:auto;flex:none}   /* the real mark, carried in the page */
-.brand{font-weight:400;font-size:22px;line-height:28px;flex:1}
-.lang{border:1px solid var(--variant);background:none;color:var(--primary);border-radius:20px;
-  min-height:40px;padding:0 16px;font:inherit;font-weight:500;font-size:14px;line-height:20px;cursor:pointer}
+/* No mark, no product name. The phone's own sign-in window already says which network this is,
+   so the page saying it again costs the first inch of the screen and tells nobody anything. What
+   is left is what the phone's own Wi-Fi screen is: a title and a list. */
 h1{font-size:24px;font-weight:400;line-height:32px;margin:0 0 4px}
-.sub{color:var(--on-variant);font-size:16px;line-height:24px;margin:0 0 16px}
+.sub{color:var(--on-variant);font-size:14px;line-height:20px;margin:0 0 16px}
 .cap{font-size:14px;line-height:20px;font-weight:500;color:var(--primary);margin:20px 4px 8px}
 .card{border-radius:28px;overflow:hidden;margin-bottom:10px}
 .it{display:flex;align-items:center;gap:16px;width:100%;min-height:56px;padding:8px 16px;border:0;
@@ -73,8 +71,6 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
 [hidden]{display:none !important}
 </style></head><body>
 
-<div class="top"><img class="mark" alt="" src="data:image/png;base64,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"><span class="brand">Salah OS</span>
-  <button class="lang" id="lang" type="button">العربية</button></div>
 <div id="app"></div>
 
 <script>
@@ -108,19 +104,21 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     'The frame could not be reached. Make sure your phone is still on the frame’s Wi-Fi.':
       'تعذّر الوصول إلى الإطار. تأكد من بقاء هاتفك متصلًا بشبكة الإطار.'
   };
-  var lang = /^ar/i.test(navigator.language || '') ? 'ar' : 'en';
+  /* The buyer answered this on the frame before any of this began; the frame fills it in when
+     it serves the page. The phone's own setting is only a fallback for a page opened by hand. */
+  var FROM_FRAME = '__LANG__';
+  var lang = FROM_FRAME === 'ar' || FROM_FRAME === 'en' ? FROM_FRAME
+           : (/^ar/i.test(navigator.language || '') ? 'ar' : 'en');
   function t(s) { return lang === 'ar' && AR[s] ? AR[s] : s; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
 
-  var app = document.getElementById('app'), langBtn = document.getElementById('lang');
+  var app = document.getElementById('app');
   var nets = null, pick = null, phase = 'scan', note = '', manual = false, timer = 0, go = '';
 
   function dir() {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-    langBtn.textContent = lang === 'ar' ? 'English' : 'العربية';
   }
-  langBtn.onclick = function () { lang = lang === 'ar' ? 'en' : 'ar'; dir(); draw(); };
 
   function get(path, cb) {
     var x = new XMLHttpRequest();

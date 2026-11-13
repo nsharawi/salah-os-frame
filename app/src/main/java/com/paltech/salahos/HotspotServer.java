@@ -227,7 +227,13 @@ final class HotspotServer {
             try { if (in != null) in.close(); } catch (Throwable ignored) { }
         }
         String type = name.endsWith(".js") ? "application/javascript" : "text/html";
-        send(out, 200, type, buf.toString("UTF-8"));
+        String text = buf.toString("UTF-8");
+        /* The buyer chose a language on the frame before any of this began. The phone page is
+           handed that answer here rather than guessing from the phone's own settings, which is
+           how an Arabic phone ended up offering English to someone who had already said Arabic -
+           and why the page needs no language button of its own at all. */
+        if (name.endsWith(".html")) text = text.replace("__LANG__", host.lang().length() > 0 ? host.lang() : "");
+        send(out, 200, type, text);
     }
 
     // ---- what the page asks for ----------------------------------------------------------

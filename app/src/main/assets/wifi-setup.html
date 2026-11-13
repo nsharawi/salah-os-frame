@@ -241,6 +241,18 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     var boxes = root.querySelectorAll('.pin');
     if (!boxes.length) return;
     function at(i) { return boxes[Math.max(0, Math.min(boxes.length - 1, i))]; }
+
+    /* Only a tap the buyer makes will open the keyboard, so every tap near the row is treated as
+       a tap on the box that wants it: the first empty one, or the last if they are all full.
+       Without this, a tap landing on the gap between the two groups, or a hair outside a box,
+       did nothing at all and the row looked dead. */
+    var row = root.querySelector('.pins');
+    if (row) row.addEventListener('click', function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains('pin')) return;
+      var want = boxes[boxes.length - 1];
+      for (var k = 0; k < boxes.length; k++) { if (!boxes[k].value) { want = boxes[k]; break; } }
+      try { want.focus(); } catch (err) { }
+    });
     for (var i = 0; i < boxes.length; i++) {
       (function (el, idx) {
         el.oninput = function () {
@@ -385,8 +397,16 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     if (see) see.onchange = function () { var p = app.querySelector('#pw'); if (p) p.type = this.checked ? 'text' : 'password'; };
     var join = app.querySelector('#join');
     if (join) join.onclick = send;
-    var first = app.querySelector('#ssid') || app.querySelector('#pw');
-    if (first) { try { first.focus(); } catch (e) {} }
+    /* The code screen's boxes were not in this list, so nothing was focused there at all and
+       even the caret had to be found by hand. Chrome and WebView both refuse to raise the
+       keyboard for a focus the page asked for rather than the buyer - a deliberate rule, and not
+       one worth fighting - so this puts the caret and the ring in the right place and the tap on
+       the boxes below does the rest. */
+    var first = app.querySelector('#ssid') || app.querySelector('#pw') || app.querySelector('.pin');
+    if (first) {
+      try { first.focus(); } catch (e) { }
+      setTimeout(function () { try { if (document.activeElement !== first) first.focus(); } catch (e) { } }, 60);
+    }
   }
 
   function send() {

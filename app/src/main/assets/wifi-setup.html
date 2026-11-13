@@ -54,16 +54,21 @@ input:focus{outline:2px solid var(--primary);border-color:transparent}
 .row{display:flex;gap:10px;align-items:center;margin-top:22px}
 .btn{flex:1;min-height:56px;border:0;border-radius:28px;background:var(--primary);color:var(--on-primary);
   font-family:inherit;font-weight:500;font-size:1rem;cursor:pointer}
-/* Six figures copied off a screen across the room. Grouped three and three as they are typed,
-   which is how the frame shows them and how a person holds a number in their head on the way
-   over. Tabular figures so the box does not breathe as it fills, and always left to right - a
-   sequence to copy is not text and does not mirror. */
-.pin{width:100%;min-height:72px;border:1px solid var(--on-variant);border-radius:4px;
-  background:var(--surface);color:var(--primary);font:inherit;font-size:32px;line-height:40px;
-  font-weight:500;text-align:center;letter-spacing:.3em;margin-inline-start:.3em;
-  font-variant-numeric:tabular-nums;direction:ltr;padding:0 8px}
+/* A box per figure, grouped three and three the way the frame shows them. Copying six figures
+   across a room is a place-keeping job, and a box each is what keeps the place: you can see at a
+   glance how many you have put in and which one you are on. Always left to right. */
+.pins{display:flex;gap:8px;direction:ltr;margin-top:4px}
+.pins .gap{width:12px;flex:none}
+/* An outlined text field's own metrics: 56dp tall, the extra-small shape, a 1dp outline that
+   doubles on focus. Headline Small for the figure - a scale step, where the 28px I had reached
+   for first was not one. */
+.pin{flex:1;min-width:0;height:56px;border:1px solid var(--on-variant);border-radius:4px;
+  background:var(--surface);color:var(--primary);font:inherit;font-size:24px;line-height:32px;
+  font-weight:400;text-align:center;padding:0;font-variant-numeric:tabular-nums;
+  -moz-appearance:textfield}
+.pin::-webkit-outer-spin-button,.pin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .pin:focus{outline:2px solid var(--primary);border-color:transparent}
-.pin::placeholder{color:var(--on-variant);opacity:.45}
+.pin.on{border-color:var(--primary)}
 a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none}
 .btn[disabled]{opacity:.45}
 .btn.ghost{background:none;color:var(--primary);flex:0 0 auto;padding:0 18px}
@@ -108,7 +113,7 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     'Try again': 'حاول مرة أخرى',
     'Open': 'مفتوحة',
     'Enter the code': 'أدخل الرمز',
-    'It is on the frame\u2019s screen, under the square.': 'ستجده على شاشة الإطار أسفل المربع.',
+    'It is showing on the frame now.': 'يظهر الآن على شاشة الإطار.',
     'Continue': 'متابعة',
     'That code did not match.': 'الرمز غير صحيح.',
     'Tries left:': 'المحاولات المتبقية:',
@@ -186,13 +191,83 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
       + '<path d="M8.25 10V7.25a3.75 3.75 0 0 1 7.5 0V10"/></svg>';
   }
 
+  /* Six boxes, with a wider gap in the middle so the two groups read apart. */
+  function pinBoxes() {
+    var h = '';
+    for (var i = 0; i < 6; i++) {
+      if (i === 3) h += '<span class="gap"></span>';
+      h += '<input class="pin" data-i="' + i + '" type="text" inputmode="numeric" '
+         + 'autocomplete="' + (i === 0 ? 'one-time-code' : 'off') + '" maxlength="1" '
+         + 'aria-label="' + esc(t('Enter the code')) + ' ' + (i + 1) + '">';
+    }
+    return h;
+  }
+
+  function pinValue() {
+    var b = document.querySelectorAll('.pin'), v = '';
+    for (var i = 0; i < b.length; i++) v += b[i].value.replace(/\D/g, '');
+    return v;
+  }
+
+  /*
+     Typing, deleting and pasting across six boxes.
+
+     A box that takes one figure has to hand the caret on itself, or every figure needs a tap of
+     its own. Backspace in an empty box steps back rather than doing nothing, which is what a
+     thumb expects. And a code arriving whole - pasted, or offered by the phone from a message -
+     fills all six rather than dropping five of them.
+  */
+  function wirePins(root) {
+    var boxes = root.querySelectorAll('.pin');
+    if (!boxes.length) return;
+    function at(i) { return boxes[Math.max(0, Math.min(boxes.length - 1, i))]; }
+    for (var i = 0; i < boxes.length; i++) {
+      (function (el, idx) {
+        el.oninput = function () {
+          var digits = this.value.replace(/\D/g, '');
+          if (digits.length > 1) { spread(digits, idx); return; }
+          this.value = digits;
+          this.classList.toggle('on', !!digits);
+          if (digits && idx < boxes.length - 1) at(idx + 1).focus();
+          if (pinValue().length === 6) sendCode();
+        };
+        el.onkeydown = function (e) {
+          var k = e.key;
+          if (k === 'Backspace' && !this.value && idx > 0) { e.preventDefault(); at(idx - 1).focus(); at(idx - 1).value = ''; at(idx - 1).classList.remove('on'); }
+          else if (k === 'ArrowLeft' && idx > 0) { e.preventDefault(); at(idx - 1).focus(); }
+          else if (k === 'ArrowRight' && idx < boxes.length - 1) { e.preventDefault(); at(idx + 1).focus(); }
+        };
+        el.onpaste = function (e) {
+          var text = (e.clipboardData || window.clipboardData);
+          if (!text) return;
+          var digits = String(text.getData('text') || '').replace(/\D/g, '');
+          if (!digits) return;
+          e.preventDefault();
+          spread(digits, idx);
+        };
+        el.onfocus = function () { try { this.select(); } catch (err) { } };
+      })(boxes[i], i);
+    }
+    function spread(digits, from) {
+      for (var j = 0; j < digits.length && from + j < boxes.length; j++) {
+        boxes[from + j].value = digits.charAt(j);
+        boxes[from + j].classList.add('on');
+      }
+      at(Math.min(from + digits.length, boxes.length - 1)).focus();
+      if (pinValue().length === 6) sendCode();
+    }
+    try { boxes[0].focus({ preventScroll: true }); } catch (e) { }
+  }
+
   function sendCode() {
-    var el = document.getElementById('pin');
-    var v = el ? el.value.replace(/\D/g, '') : '';
-    if (v.length < 4) return;
-    if (el) el.disabled = true;
+    var v = pinValue();
+    if (v.length < 6) return;
+    var boxes = document.querySelectorAll('.pin');
+    for (var i = 0; i < boxes.length; i++) boxes[i].disabled = true;
     post('/unlock', 'code=' + encodeURIComponent(v), function (d) {
       if (d && d.ok) { note = ''; scan(); return; }
+      /* Wrong: the boxes are emptied and the caret put back at the first, so the next try starts
+         where a try starts rather than wherever the last figure landed. */
       if (d && d.locked) note = t('Too many tries. Restart the frame to try again.');
       else if (d && typeof d.left === 'number')
         note = t('That code did not match.') + ' ' + t('Tries left:') + ' ' + d.left;
@@ -208,10 +283,9 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
         + '<p class="note"><span class="spin"></span>' + esc(t('Looking for networks…')) + '</p>';
     } else if (phase === 'code') {
       h = '<h1>' + esc(t('Enter the code')) + '</h1>'
-        + '<p class="sub">' + esc(t('It is on the frame\u2019s screen, under the square.')) + '</p>'
+        + '<p class="sub">' + esc(t('It is showing on the frame now.')) + '</p>'
         + (note ? '<p class="note bad">' + esc(note) + '</p>' : '')
-        + '<input id="pin" type="text" inputmode="numeric" autocomplete="one-time-code" '
-        + 'maxlength="7" class="pin" placeholder="000 000" aria-label="' + esc(t('Enter the code')) + '">'
+        + '<div class="pins" id="pins">' + pinBoxes() + '</div>'
         + '<div class="row"><button class="btn" id="unlock" type="button">'
         + esc(t('Continue')) + '</button></div>';
     } else if (phase === 'list') {
@@ -274,16 +348,8 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     }
     var other = app.querySelector('.it[data-other]');
     if (other) other.onclick = function () { pick = { ssid: '', sec: 'wpa2' }; manual = true; phase = 'pass'; draw(); };
-    var pin = app.querySelector('#pin'), unlockBtn = app.querySelector('#unlock');
-    if (pin) {
-      /* Nothing but digits, and six of them opens the door without a second tap. */
-      pin.oninput = function () {
-        var v = this.value.replace(/\D/g, '').slice(0, 6);
-        this.value = v.length > 3 ? v.slice(0, 3) + ' ' + v.slice(3) : v;
-        if (v.length === 6) sendCode();
-      };
-      try { pin.focus({ preventScroll: true }); } catch (e) { }
-    }
+    wirePins(app);
+    var unlockBtn = app.querySelector('#unlock');
     if (unlockBtn) unlockBtn.onclick = sendCode;
 
     var a1 = app.querySelector('#again'), a2 = app.querySelector('#again2');

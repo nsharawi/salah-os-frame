@@ -80,16 +80,13 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
 .qr svg rect{fill:none}
 .qr svg path{fill:var(--on)}
 .qcap{font-size:22px;line-height:28px;color:var(--dim);text-align:center}
-/* The code is read off this screen from wherever the buyer is standing and typed into a phone
-   one figure at a time, so it is drawn one figure at a time: a cell each, grouped three and
-   three, which is how a person reads a number back to themselves. Always left to right - a
-   sequence of figures to copy is not text and does not mirror. */
-.code{display:flex;gap:10px;direction:ltr;align-items:center}
-.code .cell{width:64px;height:84px;border-radius:16px;background:var(--row);
-  display:flex;align-items:center;justify-content:center;
-  font-size:45px;line-height:52px;font-weight:500;color:var(--on);
-  font-variant-numeric:tabular-nums}
-.code .sp{width:14px}
+/* Plain, on one line, in two groups of three. The frame's job here is only to be read from
+   across the room; the boxes belong on the phone, where the figures are actually put somewhere.
+   Always left to right - a sequence of figures to copy is not text and does not mirror. */
+/* Display Large, 57/64, at the scale's own tracking. The gap between the groups comes from a
+   figure-wide space in the text, not from letter-spacing invented to stand in for one. */
+.code{font-size:57px;line-height:64px;font-weight:400;color:var(--on);direction:ltr;
+  letter-spacing:0;font-variant-numeric:tabular-nums;white-space:nowrap}
 .codecap{font-size:22px;line-height:28px;color:var(--dim);text-align:center;margin-top:-10px}
 .name{margin:0;font-size:24px;line-height:32px;font-weight:400;color:var(--p);letter-spacing:0;unicode-bidi:plaintext}
 /* Material's indeterminate circular indicator: the ring turns while the arc inside it grows and
@@ -277,12 +274,9 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
   /* The figures, alone on the screen, at the moment they are wanted. */
   function showCode(value) {
     if (shownCode !== value) {
-      var cells = '';
-      for (var i = 0; i < value.length; i++) {
-        if (i === 3) cells += '<span class="sp"></span>';
-        cells += '<span class="cell">' + value.charAt(i) + '</span>';
-      }
-      id('code').innerHTML = cells;
+      id('code').textContent = value.length === 6
+        ? value.slice(0, 3) + '\u2007' + value.slice(3)   /* a figure-wide space, so the gap is even */
+        : value;
       shownCode = value;
     }
     id('hh').textContent = t('Enter this code');

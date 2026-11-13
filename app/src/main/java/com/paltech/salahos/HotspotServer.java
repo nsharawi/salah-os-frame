@@ -172,8 +172,22 @@ final class HotspotServer {
             }
         }
 
+        /* Which address the phone thought it was talking to, now that everything on port 80
+           arrives here whether or not it was addressed to us. */
+        String hostHdr = "";
+        for (String l : lines) {
+            int colon = l.indexOf(':');
+            if (colon > 0 && l.substring(0, colon).trim().equalsIgnoreCase("Host")) {
+                hostHdr = l.substring(colon + 1).trim();
+                int port = hostHdr.indexOf(':');
+                if (port > 0) hostHdr = hostHdr.substring(0, port);
+                break;
+            }
+        }
+
         lastSeen = android.os.SystemClock.elapsedRealtime();
-        Log.i(TAG, method + " " + path + " from " + c.getInetAddress());
+        Log.i(TAG, method + " " + path + (hostHdr.length() > 0 ? " host " + hostHdr : "")
+                 + " from " + c.getInetAddress());
         if ("/networks".equals(path)) { send(out, 200, "application/json", networks()); return; }
         if ("/state".equals(path))    { send(out, 200, "application/json", stateJson()); return; }
         if ("/join".equals(path) && "POST".equals(method)) { send(out, 200, "application/json", join(body)); return; }
@@ -207,13 +221,35 @@ final class HotspotServer {
             return;
         }
 
-        if ("/generate_204".equals(path) || "/gen_204".equals(path)) { redirect(out, HOME); return; }
+        /*
+          Anything addressed somewhere else, and every probe path we know of, is redirected.
+
+          A phone checking whether it is online does not ask us by name; it asks for a page it
+          expects to recognise, on a host that is not us, and now arrives here anyway because
+          port 80 is caught wherever it was sent. Handing it the setup page with a 200 answers a
+          question it did not ask. A redirect is the answer it is listening for, and it is the
+          one piece of this that every platform agrees on.
+        */
+        boolean addressedToUs = hostHdr.length() == 0 || hostHdr.equals(DhcpServer.SELF);
+        if (!addressedToUs || isProbe(path)) { redirect(out, HOME); return; }
 
         sendAsset(out, "wifi-setup.html");
     }
 
     /** Where a phone is sent to sign in. Port 80 whatever the server fell back to: the firewall. */
     private static final String HOME = "http://" + DhcpServer.SELF + "/";
+
+    /** The pages the platforms fetch to decide whether a network lets them out. */
+    private static boolean isProbe(String path) {
+        return "/generate_204".equals(path)                  /* Android, ChromeOS */
+            || "/gen_204".equals(path)
+            || "/hotspot-detect.html".equals(path)           /* iOS, macOS */
+            || "/library/test/success.html".equals(path)
+            || "/success.txt".equals(path)                   /* Firefox */
+            || "/canonical.html".equals(path)
+            || "/connecttest.txt".equals(path)               /* Windows */
+            || "/ncsi.txt".equals(path);
+    }
 
     private void redirect(OutputStream out, String where) throws IOException {
         String headers = "HTTP/1.1 302 Found\r\n"

@@ -218,7 +218,10 @@ public class MainActivity extends Activity {
 
     private long joinedAt = 0;
     private static final long QUIET_MS = 30000;    /* the phone has stopped asking: it has gone */
-    private static final long CAP_MS  = 180000;    /* and a hard stop, whatever it is doing */
+    /* Long enough for the buyer to choose a masjid, a photo and a sound on their phone, which is
+       what the hotspot is now carrying. The silence timer above is the real guard: a phone that
+       walks away takes the hotspot down thirty seconds later whatever this says. */
+    private static final long CAP_MS  = 900000;    /* and a hard stop, whatever it is doing */
 
     /*
       When to take the hotspot down.
@@ -250,6 +253,10 @@ public class MainActivity extends Activity {
     void onHotspotJoined() {
         host.markNetDone();
         handoff = true;
+        /* The phone is still sitting on the hotspot, and the page it is holding cannot leave the
+           window it is in. Now that the frame has a connection, it carries the phone's traffic
+           out through it, so that page reaches the setup session on its own. */
+        host.netShare();
         ui.post(new Runnable() {
             @Override public void run() {
                 loadFailed = false;

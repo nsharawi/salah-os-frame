@@ -54,6 +54,7 @@ public class HostControl {
     private volatile String apSsid = "";
     private volatile String apPass = "";
     private volatile String apUrl = "";
+    private volatile String apIface = "";
     private volatile String preScan = "";
     /** True while the access point is running without encryption. */
     private volatile boolean apOpen = false;
@@ -718,6 +719,7 @@ public class HostControl {
             if (portal == null) portal = new CaptivePortal(this, dhcp, server);
             portal.start(DhcpServer.SELF, iface);
 
+            apIface = iface;
             apSsid = ssid;
             apPass = pass;
             apUrl = "http://" + DhcpServer.SELF + (server.port() == 80 ? "" : ":" + server.port()) + "/";
@@ -738,6 +740,50 @@ public class HostControl {
         return m.find() ? m.group(1) : null;
     }
 
+    /**
+     * Lets the phone out through the frame's own Wi-Fi, for as long as the hotspot is still up.
+     *
+     * Without this the last step of setup is a dead end. The page the buyer is holding lives in
+     * Android's sign-in window, and that window is tied to this hotspot for its whole life: it
+     * does not follow the phone onto another network, so a link to the open internet from inside
+     * it can never load however the phone's Wi-Fi is set afterwards. The frame is online by the
+     * time this runs, though, and it is still running the access point the phone is sitting on.
+     * So it carries the phone's traffic out through its own connection, and the page the buyer
+     * already has in their hand simply works.
+     *
+     * Android's own tethering is not behind start-softap, so forwarding, the masquerade and the
+     * route for traffic arriving on the hotspot all have to be put in by hand. The upstream table
+     * is looked up rather than assumed: the frame's default route lives in a per-network table,
+     * not in main, and a rule pointing at the wrong one forwards into a black hole.
+     */
+    void netShare() {
+        if (!hotspotUp() || apIface == null || apIface.length() == 0) return;
+        try {
+            String out = outShell(
+                "echo 1 > /proc/sys/net/ipv4/ip_forward 2>&1; "
+              + "UP=$(ip route show table all 2>/dev/null | grep '^default' | grep -v 'dev " + apIface + " ' | head -1); "
+              + "DEV=$(echo \"$UP\" | sed -n 's/.* dev \\([^ ]*\\).*/\\1/p'); "
+              + "TB=$(echo \"$UP\" | sed -n 's/.* table \\([^ ]*\\).*/\\1/p'); "
+              + "[ -z \"$TB\" ] && TB=main; "
+              + "echo \"out via ${DEV:-?} table $TB\"; "
+              + "ip rule del iif " + apIface + " 2>/dev/null; "
+              + "ip rule add iif " + apIface + " lookup $TB pref 11001 2>&1; "
+              + "iptables -t nat -D POSTROUTING -s " + DhcpServer.NET + ".0/24 ! -o " + apIface + " -j MASQUERADE 2>/dev/null; "
+              + "iptables -t nat -I POSTROUTING 1 -s " + DhcpServer.NET + ".0/24 ! -o " + apIface + " -j MASQUERADE 2>&1; "
+              + "iptables -D FORWARD -i " + apIface + " -j ACCEPT 2>/dev/null; "
+              + "iptables -I FORWARD 1 -i " + apIface + " -j ACCEPT 2>&1; "
+              + "iptables -D FORWARD -o " + apIface + " -j ACCEPT 2>/dev/null; "
+              + "iptables -I FORWARD 1 -o " + apIface + " -j ACCEPT 2>&1; "
+              + "echo forwarding=$(cat /proc/sys/net/ipv4/ip_forward); "
+              + "ip rule list 2>&1 | head -10");
+            Log.i(TAG, "sharing the frame's connection with the phone: "
+                     + (out == null ? "" : out.trim()));
+            if (portal != null) portal.share(true);
+        } catch (Throwable t) {
+            Log.w(TAG, "netShare: " + t);
+        }
+    }
+
     private void tearDownHotspot() {
         try { if (server != null) server.stop(); } catch (Throwable ignored) { }
         try { if (portal != null) portal.stop(); } catch (Throwable ignored) { }
@@ -747,8 +793,18 @@ public class HostControl {
         apUrl = "";
         if (!"ready".equals(netPhase)) { netPhase = ""; return; }
         netPhase = "";
-        try { outShell("ip rule del to " + DhcpServer.NET + ".0/24 2>/dev/null; cmd wifi stop-softap"); }
+        try {
+            String ap = apIface;
+            outShell("ip rule del to " + DhcpServer.NET + ".0/24 2>/dev/null; "
+                   + (ap == null || ap.length() == 0 ? "" :
+                       "ip rule del iif " + ap + " 2>/dev/null; "
+                     + "iptables -t nat -D POSTROUTING -s " + DhcpServer.NET + ".0/24 ! -o " + ap + " -j MASQUERADE 2>/dev/null; "
+                     + "iptables -D FORWARD -i " + ap + " -j ACCEPT 2>/dev/null; "
+                     + "iptables -D FORWARD -o " + ap + " -j ACCEPT 2>/dev/null; ")
+                   + "cmd wifi stop-softap");
+        }
         catch (Throwable ignored) { }
+        apIface = "";
     }
 
     boolean hotspotUp() { return server != null && server.isRunning(); }

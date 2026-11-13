@@ -89,6 +89,9 @@ final class CaptivePortal {
     synchronized void stop() {
         if (running) { try { rules(false); } catch (Throwable ignored) { } }
         running = false;
+        sharing = false;
+        try { if (pool != null) pool.shutdownNow(); } catch (Throwable ignored) { }
+        pool = null;
         try { if (sock != null) sock.close(); } catch (Throwable ignored) { }
         sock = null;
         thread = null;
@@ -207,14 +210,94 @@ final class CaptivePortal {
         }
     }
 
+    /* ---- once the frame is online, names resolve for real - all but these ------------------
+
+       These are the names a phone uses to decide whether a network leads anywhere. They keep
+       pointing at the frame even after the frame has a connection to share, and that is on
+       purpose: the sign-in window holding the buyer's setup page is alive only for as long as
+       Android still believes there is a sign-in to do. Let the probe succeed and Android calls
+       the network good, closes the window, and takes the setup with it.
+
+       www.google.com is on the list for the same reason. The phone checks over https as well as
+       http, and a successful https check alone is enough for Android to call the network good -
+       so that one has to keep failing too. Nothing in setup asks for it. Firebase, the fonts and
+       the site itself live on other names and resolve normally. */
+    private static final String[] PROBES = {
+        "connectivitycheck.gstatic.com", "connectivitycheck.android.com",
+        "clients3.google.com", "clients1.google.com", "android.clients.google.com",
+        "www.google.com", "google.com",
+        "captive.apple.com", "www.apple.com", "gsp1.apple.com",
+        "www.msftconnecttest.com", "msftconnecttest.com", "www.msftncsi.com",
+        "detectportal.firefox.com"
+    };
+    private static final String[] UPSTREAM = { "8.8.8.8", "1.1.1.1" };
+    private volatile boolean sharing;
+    private java.util.concurrent.ExecutorService pool;
+
+    /** Called when the frame has joined the house network and is carrying the phone's traffic. */
+    synchronized void share(boolean on) {
+        if (on && pool == null) pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+        sharing = on;
+        Log.i(TAG, on ? "names now resolved for real, bar the probe hosts"
+                      : "every name answered with the frame again");
+    }
+
+    private static boolean isProbe(String name) {
+        if (name == null || name.length() == 0 || "?".equals(name)) return true;
+        String n = name.toLowerCase(java.util.Locale.US);
+        for (String p : PROBES) if (n.equals(p)) return true;
+        return false;
+    }
+
+    /** Asks a real resolver and hands the answer straight back, untouched. */
+    private void forward(final byte[] q, final int len, final InetAddress who, final int port) {
+        try {
+            pool.execute(new Runnable() { @Override public void run() {
+                for (String up : UPSTREAM) {
+                    DatagramSocket s = null;
+                    try {
+                        s = new DatagramSocket();
+                        s.setSoTimeout(2000);
+                        s.send(new DatagramPacket(q, len, InetAddress.getByName(up), 53));
+                        byte[] buf = new byte[1500];
+                        DatagramPacket in = new DatagramPacket(buf, buf.length);
+                        s.receive(in);
+                        sock.send(new DatagramPacket(buf, in.getLength(), who, port));
+                        return;
+                    } catch (Throwable ignored) {
+                    } finally {
+                        if (s != null) { try { s.close(); } catch (Throwable ignored2) { } }
+                    }
+                }
+                /* Nothing upstream answered. The frame is better than silence: the phone lands on
+                   a page that can at least say so. */
+                try {
+                    byte[] r = reply(q, len);
+                    if (r != null) sock.send(new DatagramPacket(r, r.length, who, port));
+                } catch (Throwable ignored) { }
+            }});
+        } catch (Throwable t) {
+            Log.w(TAG, "forward: " + t);
+        }
+    }
+
     private void loop() {
         byte[] buf = new byte[512];
         while (running) {
             try {
                 DatagramPacket in = new DatagramPacket(buf, buf.length);
                 sock.receive(in);
-                byte[] out = reply(in.getData(), in.getLength());
-                if (asked < 8) { asked++; Log.i(TAG, "name asked for: " + nameIn(in.getData(), in.getLength())); }
+                int n = in.getLength();
+                String name = nameIn(in.getData(), n);
+                if (asked < 12) { asked++; Log.i(TAG, "name asked for: " + name
+                        + (sharing && !isProbe(name) ? " (passed through)" : " -> the frame")); }
+                if (sharing && !isProbe(name)) {
+                    byte[] copy = new byte[n];
+                    System.arraycopy(in.getData(), 0, copy, 0, n);
+                    forward(copy, n, in.getAddress(), in.getPort());
+                    continue;
+                }
+                byte[] out = reply(in.getData(), n);
                 if (out != null) sock.send(new DatagramPacket(out, out.length, in.getAddress(), in.getPort()));
             } catch (java.net.SocketTimeoutException e) {
                 /* nothing asked this second */

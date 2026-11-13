@@ -1,0 +1,449 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Salah OS — Wi-Fi</title>
+<!--
+  The page the buyer's phone opens over the frame's own hotspot.
+
+  It is served from inside the app, so it has to carry everything it needs: no fonts, no
+  frameworks, no images. It is also kept short on purpose — a phone that notices this network has
+  no internet may wander back to the house Wi-Fi, so the fewer seconds between joining and
+  finishing, the better.
+-->
+<style>
+:root{
+  --bg:#EDF2EE;--surface:#FFFFFF;--variant:#DCE5DD;--on:#191C1A;--on-variant:#414942;
+  --primary:#1C6B48;--on-primary:#FFFFFF;--container:#B9F0CF;--on-container:#002112;--err:#BA1A1A;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0E1411;--surface:#1D2621;--variant:#2A332D;--on:#E4EAE6;--on-variant:#9AA69F;
+        --primary:#8FD6B8;--on-primary:#003826;--container:#005134;--on-container:#B9F0CF;--err:#FFB4A9}
+}
+*{box-sizing:border-box}
+html{font-size:100%}   /* a phone held in the hand, not a panel read across a room */
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--on);font-family:system-ui,-apple-system,Roboto,sans-serif;
+  padding:16px 16px 32px;max-width:560px;margin:0 auto;-webkit-text-size-adjust:100%}
+/* No mark, no product name. The phone's own sign-in window already says which network this is,
+   so the page saying it again costs the first inch of the screen and tells nobody anything. What
+   is left is what the phone's own Wi-Fi screen is: a title and a list. */
+h1{font-size:24px;font-weight:400;line-height:32px;margin:0 0 4px}
+.sub{color:var(--on-variant);font-size:14px;line-height:20px;margin:0 0 16px}
+.cap{font-size:14px;line-height:20px;font-weight:500;color:var(--primary);margin:20px 4px 8px}
+.card{border-radius:28px;overflow:hidden;margin-bottom:10px}
+.it{display:flex;align-items:center;gap:16px;width:100%;min-height:56px;padding:8px 16px;border:0;
+  background:var(--surface);color:inherit;font:inherit;text-align:start;cursor:pointer;border-radius:4px;margin-bottom:2px}
+.it:first-child{border-radius:28px 28px 4px 4px}
+.it:last-child{border-radius:4px 4px 28px 28px;margin-bottom:0}
+.it:only-child{border-radius:28px}
+.it:active{background:var(--variant)}
+.it.on{background:var(--container);color:var(--on-container)}
+.tx{flex:1;min-width:0}
+.t1{display:block;font-size:1rem;line-height:1.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;unicode-bidi:isolate}  /* a Latin name reads left to right, still hung on the row's start edge */
+.t2{display:block;font-size:.875rem;line-height:1.25rem;color:var(--on-variant);overflow-wrap:anywhere}
+.it.on .t2{color:var(--on-container)}
+.ic{flex:none;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
+.wi{color:var(--on-variant)}
+.wi .q{opacity:.3}                      /* the arcs this network is not strong enough to light */
+.wi .d{fill:currentColor;stroke:none}
+.lk{color:var(--on-variant);width:20px;height:20px}
+label{display:block;font-size:14px;line-height:20px;color:var(--on-variant);margin:18px 0 6px}
+input{width:100%;min-height:56px;border:1px solid var(--on-variant);border-radius:4px;background:var(--surface);
+  color:inherit;font:inherit;font-size:16px;line-height:24px;padding:0 16px;unicode-bidi:plaintext}
+input:focus{outline:2px solid var(--primary);border-color:transparent}
+.row{display:flex;gap:10px;align-items:center;margin-top:22px}
+.btn{flex:1;min-height:56px;border:0;border-radius:28px;background:var(--primary);color:var(--on-primary);
+  font-family:inherit;font-weight:500;font-size:1rem;cursor:pointer}
+/* A box per figure, grouped three and three the way the frame shows them. Copying six figures
+   across a room is a place-keeping job, and a box each is what keeps the place: you can see at a
+   glance how many you have put in and which one you are on. Always left to right. */
+.pins{display:flex;gap:8px;direction:ltr;margin-top:4px}
+.pins .gap{width:12px;flex:none}
+/* An outlined text field's own metrics: 56dp tall, the extra-small shape, a 1dp outline that
+   doubles on focus. Headline Small for the figure - a scale step, where the 28px I had reached
+   for first was not one. */
+.pin{flex:1;min-width:0;height:56px;border:1px solid var(--on-variant);border-radius:4px;
+  background:var(--surface);color:var(--primary);font:inherit;font-size:24px;line-height:32px;
+  font-weight:400;text-align:center;padding:0;font-variant-numeric:tabular-nums;
+  -moz-appearance:textfield}
+.pin::-webkit-outer-spin-button,.pin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.pin:focus{outline:2px solid var(--primary);border-color:transparent}
+.pin.on{border-color:var(--primary)}
+a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none}
+.btn[disabled]{opacity:.45}
+.btn.ghost{background:none;color:var(--primary);flex:0 0 auto;padding:0 18px}
+.note{margin-top:18px;font-size:14px;line-height:20px;color:var(--on-variant)}
+.note.bad{color:var(--err)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--variant);border-top-color:var(--primary);
+  border-radius:50%;animation:s .9s linear infinite;vertical-align:-2px;margin-inline-end:8px}
+@keyframes s{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.big{text-align:center;padding:30px 0}
+.big .tick{width:72px;height:72px;border-radius:50%;background:var(--container);color:var(--on-container);
+  margin:0 auto 16px;display:flex;align-items:center;justify-content:center}
+.big .tick svg{width:40px;height:40px;fill:none;stroke:currentColor;stroke-width:2.5;
+  stroke-linecap:round;stroke-linejoin:round}
+[hidden]{display:none !important}
+</style></head><body>
+
+<div id="app"></div>
+
+<script>
+(function () {
+  'use strict';
+  var AR = {
+    'Choose your Wi-Fi': 'اختر شبكة الواي فاي',
+    'Pick the network this frame should use. It only has to be done once.': 'اختر الشبكة التي سيستخدمها الإطار. تُجرى هذه الخطوة مرة واحدة فقط.',
+    'Looking for networks…': 'جارٍ البحث عن الشبكات…',
+    'No networks found.': 'لم يتم العثور على شبكات.',
+    'Search again': 'ابحث مرة أخرى',
+    'Other network…': 'شبكة أخرى…',
+    'Enter the name yourself': 'أدخل الاسم يدويًا',
+    'Network name': 'اسم الشبكة',
+    'Password': 'كلمة المرور',
+    'Show password': 'إظهار كلمة المرور',
+    'Join': 'اتصال',
+    'Back': 'رجوع',
+    'Joining…': 'جارٍ الاتصال…',
+    'Connected': 'تم الاتصال',
+    'Your frame is online. Salah OS is starting now.': 'الإطار متصل الآن. يبدأ تشغيل سلاة أو إس الآن.',
+    'You can put your phone back on your own Wi-Fi.': 'يمكنك إعادة هاتفك إلى شبكتك المعتادة.',
+    'That did not work': 'لم ينجح الاتصال',
+    'Check the password and try again.': 'تحقق من كلمة المرور وحاول مرة أخرى.',
+    'Try again': 'حاول مرة أخرى',
+    'Open': 'مفتوحة',
+    'Enter the code': 'أدخل الرمز',
+    'It is showing on the frame now.': 'يظهر الآن على شاشة الإطار.',
+    'That code did not match.': 'الرمز غير صحيح.',
+    'Tries left:': 'المحاولات المتبقية:',
+    'Too many tries. Restart the frame to try again.': 'عدد المحاولات كبير. أعد تشغيل الإطار للمحاولة من جديد.',
+    'Finish setup on this phone': 'أكمل الإعداد من هذا الهاتف',
+    'Finish on your phone: point your camera at the code on the frame.':
+      'أكمل الإعداد من هاتفك: وجّه الكاميرا إلى الرمز الظاهر على الإطار.',
+    'Put your phone back on your own Wi-Fi first, then tap the button.':
+      'أعد هاتفك إلى شبكتك أولًا، ثم اضغط الزر.',
+    'Networks': 'الشبكات',
+    'The frame could not be reached. Make sure your phone is still on the frame’s Wi-Fi.':
+      'تعذّر الوصول إلى الإطار. تأكد من بقاء هاتفك متصلًا بشبكة الإطار.'
+  };
+  /* The buyer answered this on the frame before any of this began; the frame fills it in when
+     it serves the page. The phone's own setting is only a fallback for a page opened by hand. */
+  var FROM_FRAME = '__LANG__';
+  var lang = FROM_FRAME === 'ar' || FROM_FRAME === 'en' ? FROM_FRAME
+           : (/^ar/i.test(navigator.language || '') ? 'ar' : 'en');
+  function t(s) { return lang === 'ar' && AR[s] ? AR[s] : s; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+
+  var app = document.getElementById('app');
+  var nets = null, pick = null, phase = 'scan', note = '', manual = false, timer = 0, go = '';
+
+  function dir() {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  }
+
+  function get(path, cb) {
+    var x = new XMLHttpRequest();
+    x.open('GET', path, true);
+    x.timeout = 30000;
+    x.onload = function () { try { cb(JSON.parse(x.responseText)); } catch (e) { cb(null); } };
+    x.onerror = x.ontimeout = function () { cb(null); };
+    x.send();
+  }
+  function post(path, body, cb) {
+    var x = new XMLHttpRequest();
+    x.open('POST', path, true);
+    x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    x.timeout = 20000;
+    x.onload = function () { try { cb(JSON.parse(x.responseText)); } catch (e) { cb(null); } };
+    x.onerror = x.ontimeout = function () { cb(null); };
+    x.send(body);
+  }
+
+  /* Can this page reach the open internet? In the captive-portal window the answer is no and
+     stays no. While the hotspot is still up the frame answers port 80 and nothing else, so an
+     https request aimed at it is refused rather than hijacked: there is no false yes here. */
+  var netOk = false, reachT = 0;
+  function reach() {
+    if (netOk || reachT) return;
+    var ping = function () {
+      var im = new Image();
+      im.onload = function () {
+        if (netOk) return;
+        netOk = true; clearInterval(reachT); reachT = 0;
+        if (phase === 'done') draw();
+      };
+      im.src = 'https://salah-os.web.app/icons/icon-192.png?x=' + Date.now();
+    };
+    reachT = setInterval(ping, 4000);
+    ping();
+  }
+
+  function scan() {
+    phase = 'scan'; note = ''; draw();
+    get('/networks', function (d) {
+      if (!d) { phase = 'lost'; draw(); return; }
+      /* The frame refuses the list until the code on its screen has been typed here. Asking for
+         it is what tells us: there is no separate question, and a frame that wants no code is
+         never asked for one. */
+      if (d.error === 'locked') { phase = 'code'; draw(); return; }
+      nets = d.networks || [];
+      phase = 'list';
+      draw();
+    });
+  }
+
+  /* The phone's own Wi-Fi list draws signal as arcs over a dot, and a closed network as a small
+     outlined padlock. Both are drawn here rather than borrowed: the page carries no icon font,
+     and an emoji padlock is a picture of a lock, not the Material one. */
+  function wifi(rssi) {
+    var n = rssi > -60 ? 3 : rssi > -72 ? 2 : 1;
+    function arc(i, d) { return '<path class="' + (i <= n ? '' : 'q') + '" d="' + d + '"/>'; }
+    return '<svg class="ic wi" viewBox="0 0 24 24" aria-hidden="true">'
+      + arc(3, 'M2.3 9.1a15.2 15.2 0 0 1 19.4 0')
+      + arc(2, 'M5.7 13a10 10 0 0 1 12.6 0')
+      + arc(1, 'M9.1 16.9a4.8 4.8 0 0 1 5.8 0')
+      + '<circle class="d" cx="12" cy="19.8" r="1.5"/></svg>';
+  }
+  function lock() {
+    return '<svg class="ic lk" viewBox="0 0 24 24" aria-hidden="true">'
+      + '<rect x="4.5" y="10" width="15" height="10.5" rx="2.5"/>'
+      + '<path d="M8.25 10V7.25a3.75 3.75 0 0 1 7.5 0V10"/></svg>';
+  }
+
+  /* Six boxes, with a wider gap in the middle so the two groups read apart. */
+  function pinBoxes() {
+    var h = '';
+    for (var i = 0; i < 6; i++) {
+      if (i === 3) h += '<span class="gap"></span>';
+      h += '<input class="pin" data-i="' + i + '" type="text" inputmode="numeric" '
+         + 'autocomplete="' + (i === 0 ? 'one-time-code' : 'off') + '" maxlength="1" '
+         + 'aria-label="' + esc(t('Enter the code')) + ' ' + (i + 1) + '">';
+    }
+    return h;
+  }
+
+  function pinValue() {
+    var b = document.querySelectorAll('.pin'), v = '';
+    for (var i = 0; i < b.length; i++) v += b[i].value.replace(/\D/g, '');
+    return v;
+  }
+
+  /*
+     Typing, deleting and pasting across six boxes.
+
+     A box that takes one figure has to hand the caret on itself, or every figure needs a tap of
+     its own. Backspace in an empty box steps back rather than doing nothing, which is what a
+     thumb expects. And a code arriving whole - pasted, or offered by the phone from a message -
+     fills all six rather than dropping five of them.
+  */
+  function wirePins(root) {
+    var boxes = root.querySelectorAll('.pin');
+    if (!boxes.length) return;
+    function at(i) { return boxes[Math.max(0, Math.min(boxes.length - 1, i))]; }
+
+    /* Only a tap the buyer makes will open the keyboard, so every tap near the row is treated as
+       a tap on the box that wants it: the first empty one, or the last if they are all full.
+       Without this, a tap landing on the gap between the two groups, or a hair outside a box,
+       did nothing at all and the row looked dead. */
+    var row = root.querySelector('.pins');
+    if (row) row.addEventListener('click', function (e) {
+      if (e.target && e.target.classList && e.target.classList.contains('pin')) return;
+      var want = boxes[boxes.length - 1];
+      for (var k = 0; k < boxes.length; k++) { if (!boxes[k].value) { want = boxes[k]; break; } }
+      try { want.focus(); } catch (err) { }
+    });
+    for (var i = 0; i < boxes.length; i++) {
+      (function (el, idx) {
+        el.oninput = function () {
+          var digits = this.value.replace(/\D/g, '');
+          if (digits.length > 1) { spread(digits, idx); return; }
+          this.value = digits;
+          this.classList.toggle('on', !!digits);
+          if (digits && idx < boxes.length - 1) at(idx + 1).focus();
+          if (pinValue().length === 6) sendCode();
+        };
+        el.onkeydown = function (e) {
+          var k = e.key;
+          if (k === 'Enter') { e.preventDefault(); sendCode(); }
+          else if (k === 'Backspace' && !this.value && idx > 0) { e.preventDefault(); at(idx - 1).focus(); at(idx - 1).value = ''; at(idx - 1).classList.remove('on'); }
+          else if (k === 'ArrowLeft' && idx > 0) { e.preventDefault(); at(idx - 1).focus(); }
+          else if (k === 'ArrowRight' && idx < boxes.length - 1) { e.preventDefault(); at(idx + 1).focus(); }
+        };
+        el.onpaste = function (e) {
+          var text = (e.clipboardData || window.clipboardData);
+          if (!text) return;
+          var digits = String(text.getData('text') || '').replace(/\D/g, '');
+          if (!digits) return;
+          e.preventDefault();
+          spread(digits, idx);
+        };
+        el.onfocus = function () { try { this.select(); } catch (err) { } };
+      })(boxes[i], i);
+    }
+    function spread(digits, from) {
+      for (var j = 0; j < digits.length && from + j < boxes.length; j++) {
+        boxes[from + j].value = digits.charAt(j);
+        boxes[from + j].classList.add('on');
+      }
+      at(Math.min(from + digits.length, boxes.length - 1)).focus();
+      if (pinValue().length === 6) sendCode();
+    }
+    try { boxes[0].focus({ preventScroll: true }); } catch (e) { }
+  }
+
+  function sendCode() {
+    var v = pinValue();
+    if (v.length < 6) return;
+    var boxes = document.querySelectorAll('.pin');
+    for (var i = 0; i < boxes.length; i++) boxes[i].disabled = true;
+    post('/unlock', 'code=' + encodeURIComponent(v), function (d) {
+      if (d && d.ok) { note = ''; scan(); return; }
+      /* Wrong: the boxes are emptied and the caret put back at the first, so the next try starts
+         where a try starts rather than wherever the last figure landed. */
+      if (d && d.locked) note = t('Too many tries. Restart the frame to try again.');
+      else if (d && typeof d.left === 'number')
+        note = t('That code did not match.') + ' ' + t('Tries left:') + ' ' + d.left;
+      else note = t('That code did not match.');
+      draw();
+    });
+  }
+
+  function draw() {
+    var h = '';
+    if (phase === 'scan') {
+      h = '<h1>' + esc(t('Choose your Wi-Fi')) + '</h1><p class="sub">' + esc(t('Pick the network this frame should use. It only has to be done once.')) + '</p>'
+        + '<p class="note"><span class="spin"></span>' + esc(t('Looking for networks…')) + '</p>';
+    } else if (phase === 'code') {
+      h = '<h1>' + esc(t('Enter the code')) + '</h1>'
+        + '<p class="sub">' + esc(t('It is showing on the frame now.')) + '</p>'
+        + (note ? '<p class="note bad">' + esc(note) + '</p>' : '')
+        /* No button. The sixth figure is the enter - there is nothing left to decide once it
+           is in, and a button there only asks somebody to confirm what they have just done.
+           The keyboard's own Enter still works; it simply is not drawn. */
+        + '<div class="pins" id="pins">' + pinBoxes() + '</div>';
+    } else if (phase === 'list') {
+      h = '<h1>' + esc(t('Choose your Wi-Fi')) + '</h1><p class="sub">' + esc(t('Pick the network this frame should use. It only has to be done once.')) + '</p>';
+      if (!nets.length) h += '<p class="note">' + esc(t('No networks found.')) + '</p>';
+      else h += '<div class="cap">' + esc(t('Networks')) + '</div>';
+      h += '<div class="card">';
+      nets.forEach(function (n, i) {
+        h += '<button class="it" data-i="' + i + '" type="button">' + wifi(n.rssi)
+          + '<span class="tx"><span class="t1">' + esc(n.ssid) + '</span>'
+          + (n.sec === 'open' ? '<span class="t2">' + esc(t('Open')) + '</span>' : '') + '</span>'
+          + (n.sec === 'open' ? '' : lock()) + '</button>';
+      });
+      h += '<button class="it" data-other="1" type="button">'
+        + '<svg class="ic lk" viewBox="0 0 24 24" aria-hidden="true" style="width:24px;height:24px">'
+        + '<path d="M12 5v14M5 12h14"/></svg>'
+        + '<span class="tx"><span class="t1">' + esc(t('Other network…'))
+        + '</span><span class="t2">' + esc(t('Enter the name yourself')) + '</span></span></button></div>'
+        + '<div class="row"><button class="btn ghost" id="again" type="button">' + esc(t('Search again')) + '</button></div>';
+    } else if (phase === 'pass') {
+      h = '<h1>' + esc(manual ? t('Other network…') : pick.ssid) + '</h1>';
+      if (manual) h += '<label for="ssid">' + esc(t('Network name')) + '</label><input id="ssid" type="text" autocapitalize="none" autocorrect="off">';
+      if (!pick || pick.sec !== 'open') {
+        h += '<label for="pw">' + esc(t('Password')) + '</label>'
+          + '<input id="pw" type="password" autocapitalize="none" autocorrect="off" autocomplete="current-password">'
+          + '<div class="row" style="margin-top:10px"><label style="margin:0;display:flex;align-items:center;gap:8px;font-size:.95rem">'
+          + '<input id="see" type="checkbox" style="width:20px;min-height:20px">' + esc(t('Show password')) + '</label></div>';
+      }
+      h += '<div class="row"><button class="btn ghost" id="back" type="button">' + esc(t('Back')) + '</button>'
+        + '<button class="btn" id="join" type="button">' + esc(t('Join')) + '</button></div>';
+    } else if (phase === 'joining') {
+      h = '<h1>' + esc(t('Joining…')) + '</h1><p class="sub">' + esc(pick ? pick.ssid : '') + '</p>'
+        + '<p class="note"><span class="spin"></span>' + esc(t('Joining…')) + '</p>';
+    } else if (phase === 'done') {
+      /* This page is living inside the phone's captive-portal window, and that window stays bound
+         to the frame's hotspot for as long as it is open. A link to the open internet from here
+         cannot load - not after the hotspot goes, not after the phone is back on the house Wi-Fi,
+         not ever - so offering one was offering a dead end. The handover goes back to the frame
+         instead: it is on the house network now, and it puts the same setup session on its screen
+         as a code to scan. If this page does turn out to reach the internet - opened by hand in a
+         real browser, or an iPhone sheet that is not bound - the button appears in its place. */
+      h = '<div class="big"><div class="tick"><svg viewBox="0 0 24 24" aria-hidden="true">'
+        + '<path d="M5 12.5l5 5L19 8"/></svg></div><h1>' + esc(t('Connected')) + '</h1>'
+        + '<p class="sub">' + esc(t('Your frame is online. Salah OS is starting now.')) + '</p>';
+      if (go && netOk) h += '<div class="row"><a class="btn" href="' + esc(go) + '">'
+        + esc(t('Finish setup on this phone')) + '</a></div></div>';
+      else if (go) h += '<p class="note">'
+        + esc(t('Finish on your phone: point your camera at the code on the frame.')) + '</p></div>';
+      else h += '<p class="note">' + esc(t('You can put your phone back on your own Wi-Fi.')) + '</p></div>';
+      reach();
+    } else if (phase === 'failed') {
+      h = '<h1>' + esc(t('That did not work')) + '</h1><p class="sub">' + esc(note || t('Check the password and try again.')) + '</p>'
+        + '<div class="row"><button class="btn" id="again2" type="button">' + esc(t('Try again')) + '</button></div>';
+    } else if (phase === 'lost') {
+      h = '<h1>' + esc(t('That did not work')) + '</h1>'
+        + '<p class="sub bad">' + esc(t('The frame could not be reached. Make sure your phone is still on the frame’s Wi-Fi.')) + '</p>'
+        + '<div class="row"><button class="btn" id="again2" type="button">' + esc(t('Try again')) + '</button></div>';
+    }
+    app.innerHTML = h;
+
+    var els = app.querySelectorAll('.it[data-i]');
+    for (var i = 0; i < els.length; i++) {
+      els[i].onclick = function () { pick = nets[+this.getAttribute('data-i')]; manual = false; phase = 'pass'; draw(); };
+    }
+    var other = app.querySelector('.it[data-other]');
+    if (other) other.onclick = function () { pick = { ssid: '', sec: 'wpa2' }; manual = true; phase = 'pass'; draw(); };
+    wirePins(app);
+
+    var a1 = app.querySelector('#again'), a2 = app.querySelector('#again2');
+    if (a1) a1.onclick = scan;
+    if (a2) a2.onclick = scan;
+    var back = app.querySelector('#back');
+    if (back) back.onclick = function () { phase = 'list'; draw(); };
+    var see = app.querySelector('#see');
+    if (see) see.onchange = function () { var p = app.querySelector('#pw'); if (p) p.type = this.checked ? 'text' : 'password'; };
+    var join = app.querySelector('#join');
+    if (join) join.onclick = send;
+    /* The code screen's boxes were not in this list, so nothing was focused there at all and
+       even the caret had to be found by hand. Chrome and WebView both refuse to raise the
+       keyboard for a focus the page asked for rather than the buyer - a deliberate rule, and not
+       one worth fighting - so this puts the caret and the ring in the right place and the tap on
+       the boxes below does the rest. */
+    var first = app.querySelector('#ssid') || app.querySelector('#pw') || app.querySelector('.pin');
+    if (first) {
+      try { first.focus(); } catch (e) { }
+      setTimeout(function () { try { if (document.activeElement !== first) first.focus(); } catch (e) { } }, 60);
+    }
+  }
+
+  function send() {
+    var ssidEl = app.querySelector('#ssid'), pwEl = app.querySelector('#pw');
+    var ssid = manual ? (ssidEl ? ssidEl.value.trim() : '') : pick.ssid;
+    if (!ssid) { if (ssidEl) ssidEl.focus(); return; }
+    var pass = pwEl ? pwEl.value : '';
+    pick = { ssid: ssid, sec: pick && pick.sec ? pick.sec : 'wpa2' };
+    phase = 'joining'; draw();
+    post('/join', 'ssid=' + encodeURIComponent(ssid) + '&sec=' + encodeURIComponent(pick.sec) + '&pass=' + encodeURIComponent(pass),
+      function (d) {
+        if (!d || !d.ok) { phase = 'failed'; note = d && d.why ? d.why : ''; draw(); return; }
+        watch(0);
+      });
+  }
+
+  /* The frame answers over the hotspot while it joins the house network, because the two radios
+     are separate. Once it is online it takes the hotspot down, so a request that stops being
+     answered right after "connected" is success, not failure. */
+  function watch(tries) {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      get('/state', function (d) {
+        if (!d) {
+          if (phase === 'done') return;
+          if (tries > 3) { phase = 'done'; draw(); return; }   /* the hotspot went away: it worked */
+          watch(tries + 1); return;
+        }
+        if (d.go) go = d.go;   /* held from the first answer, in case the hotspot goes first */
+        if (d.state === 'connected') { phase = 'done'; draw(); return; }
+        if (d.state === 'failed') { phase = 'failed'; note = d.note || ''; draw(); return; }
+        watch(0);
+      });
+    }, 1500);
+  }
+
+  dir();
+  scan();
+})();
+</script></body></html>

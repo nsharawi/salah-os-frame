@@ -1,0 +1,275 @@
+package com.paltech.salahos;
+
+import android.util.Log;
+
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.StandardProtocolFamily;
+import java.net.StandardSocketOptions;
+import java.nio.ByteBuffer;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Hands out an address to the one phone that joins the frame's hotspot.
+ *
+ * Android raises the access point but stops there: `cmd wifi start-softap` says so itself, and the
+ * frame was watched doing exactly that — the radio came up on wlan1 with no address on it and
+ * nothing answering DHCP. Real tethering would do this part, but it lives inside a system module
+ * that an app cannot ask for. So the frame does it: this is a DHCP server cut down to the one case
+ * that matters, a single phone asking for an address so it can open one page.
+ *
+ * Port 67 belongs to root, which this app is not, so the frame's own firewall sends port 67 here
+ * and rewrites the replies as if they came from there (see {@link CaptivePortal}).
+ */
+final class DhcpServer {
+    private static final String TAG = "SalahHotspot";
+    static final int PORT = 67;              /* where a phone expects to be answered from */
+    static final int ALT  = 6767;            /* and where the firewall sends it if 67 is barred */
+    static final String NET = "192.168.49";
+    static final String SELF = NET + ".1";
+    static final String BCAST = NET + ".255";
+    /** Where a phone is told to ask whether this network wants it to sign in (RFC 8908/8910). */
+    static final String CAPTIVE_API = "http://" + NET + ".1/captive-api";
+
+    /** True once a phone has asked us for an address: the earliest sign anyone has joined. */
+    private volatile boolean served = false;
+    boolean served() { return served; }
+    private static final int LEASE_SECONDS = 3600;
+
+    private DatagramSocket sock;      /* only on the fallback path */
+    private DatagramChannel chan;     /* the real IPv4 socket, when we can have it */
+    private Selector sel;
+    private Thread thread;
+    private volatile boolean running;
+    private final Map<String, Integer> leases = new HashMap<String, Integer>();
+    private int next = 20;
+
+    /** True when the frame had to fall back, and the firewall has to carry port 67 here. */
+    private volatile boolean fellBack;
+
+    boolean fellBack() { return fellBack; }
+
+    synchronized void start() {
+        if (running) return;
+        try {
+            /*
+              Port 67 if it can be had. A phone's DHCP client checks that the answer came FROM
+              port 67 and throws away anything else, so an answer rewritten on the way out by the
+              firewall is a coin toss - and losing it looks exactly like what the frame did:
+              the phone asks, gets nothing it will accept, and says the address configuration
+              failed. Binding 67 outright removes the question. Where the kernel will not allow
+              it, the firewall carries 67 here instead and we live with the rewrite.
+            */
+            /*
+              Port 67 is already held, by Android's own tethering server inside system_server. It
+              is not serving anything here - the shell command that raises the access point never
+              starts the tethering layer - but it holds the port all the same.
+              Sharing it is allowed: a socket that asks to reuse the address can bind alongside,
+              and the kernel hands a BROADCAST datagram to every socket bound to that port, which
+              is exactly what a DHCP request is. So this does not take the port from anyone; it
+              listens beside them.
+            */
+            /*
+              Always on the high port, with the firewall carrying port 67 to it.
+
+              Holding 67 outright would be tidier and it can be done - a channel opened for the
+              INET family binds alongside the server Android keeps there. But whether the kernel
+              then hands a broadcast datagram to both sockets or only to the first is not
+              something to stake first-run setup on, and taking it cost a build: the app bound 67
+              and an earlier build's redirect, still in the chain, went on sending the phone's
+              requests to a port nobody was listening on. The arrangement below is the one that
+              was watched working on the frame - the phone asked, was offered 192.168.49.20, and
+              took it.
+            */
+            sock = new DatagramSocket(ALT);
+            fellBack = true;
+            if (sock != null) { sock.setBroadcast(true); sock.setSoTimeout(1000); }
+            running = true;
+            thread = new Thread(new Runnable() { @Override public void run() { loop(); } }, "salah-dhcp");
+            thread.setDaemon(true);
+            thread.start();
+            Log.i(TAG, "dhcp listening on " + (fellBack ? ALT : PORT) + (chan != null ? " (ipv4 channel)" : ""));
+        } catch (Throwable t) {
+            Log.w(TAG, "dhcp could not start: " + t);
+            stop();
+        }
+    }
+
+    synchronized void stop() {
+        running = false;
+        try { if (sel != null) sel.close(); } catch (Throwable ignored) { }
+        try { if (chan != null) chan.close(); } catch (Throwable ignored) { }
+        try { if (sock != null) sock.close(); } catch (Throwable ignored) { }
+        sel = null; chan = null; sock = null;
+        thread = null;
+        leases.clear();
+    }
+
+    boolean isRunning() { return running; }
+
+    private void loop() {
+        if (chan != null) { channelLoop(); return; }
+        byte[] buf = new byte[1500];
+        while (running) {
+            try {
+                DatagramPacket in = new DatagramPacket(buf, buf.length);
+                sock.receive(in);
+                byte[] out = reply(in.getData(), in.getLength());
+                if (out != null) {
+                    /*
+                      Shouted, because the phone has no address yet to be spoken to - but shouted
+                      on this subnet rather than at 255.255.255.255. The latter is sent wherever
+                      the routing table feels like, which with the frame's own Wi-Fi down is
+                      nowhere useful; 192.168.49.255 can only go out of the access point.
+                    */
+                    sock.send(new DatagramPacket(out, out.length, InetAddress.getByName(BCAST), 68));
+                }
+            } catch (java.net.SocketTimeoutException e) {
+                /* nobody asked this second */
+            } catch (Throwable t) {
+                if (running) Log.w(TAG, "dhcp: " + t);
+            }
+        }
+    }
+
+    /** The same conversation over the channel, which is where it normally happens. */
+    private void channelLoop() {
+        ByteBuffer buf = ByteBuffer.allocate(1500);
+        while (running) {
+            try {
+                if (sel.select(1000) == 0) continue;
+                sel.selectedKeys().clear();
+                buf.clear();
+                if (chan.receive(buf) == null) continue;
+                int len = buf.position();
+                byte[] in = new byte[len];
+                buf.flip();
+                buf.get(in);
+                byte[] out = reply(in, len);
+                if (out != null) {
+                    chan.send(ByteBuffer.wrap(out), new InetSocketAddress(InetAddress.getByName(BCAST), 68));
+                }
+            } catch (java.nio.channels.ClosedSelectorException e) {
+                return;
+            } catch (Throwable t) {
+                if (running) Log.w(TAG, "dhcp: " + t);
+            }
+        }
+    }
+
+    /** DISCOVER gets an OFFER, REQUEST gets an ACK, and nothing else is answered. */
+    private byte[] reply(byte[] p, int len) {
+        if (len < 240) return null;
+        if ((p[0] & 255) != 1) return null;                 /* not a request */
+        if (!(p[236] == (byte) 0x63 && p[237] == (byte) 0x82
+           && p[238] == (byte) 0x53 && p[239] == (byte) 0x63)) return null;
+
+        int type = 0;
+        String asked = "";
+        boolean wantsPortal = false;
+        for (int i = 240; i + 1 < len; ) {
+            int opt = p[i] & 255;
+            if (opt == 255) break;
+            if (opt == 0) { i++; continue; }
+            int l = p[i + 1] & 255;
+            if (opt == 53 && l == 1 && i + 2 < len) type = p[i + 2] & 255;
+            /*
+              Option 55 is the client's own list of what it wants to be told. Most clients ignore
+              anything they did not ask for, so whether 114 is in this list decides whether the
+              captive-portal URI can work at all - and that is not something to keep guessing at
+              from the outside.
+            */
+            if (opt == 55 && i + 2 + l <= len) {
+                StringBuilder sb = new StringBuilder();
+                for (int k = 0; k < l; k++) {
+                    int o = p[i + 2 + k] & 255;
+                    if (o == 114) wantsPortal = true;
+                    if (k > 0) sb.append(',');
+                    sb.append(o);
+                }
+                asked = sb.toString();
+            }
+            i += 2 + l;
+        }
+        if (type != 1 && type != 3) return null;            /* DISCOVER or REQUEST only */
+
+        Log.i(TAG, "the phone asked for options [" + asked + "] - captive-portal URI (114) "
+                 + (wantsPortal ? "IS" : "is NOT") + " among them");
+
+        StringBuilder mac = new StringBuilder();
+        for (int i = 28; i < 34; i++) mac.append(String.format("%02x", p[i] & 255));
+        int host = lease(mac.toString());
+        served = true;
+        Log.i(TAG, (type == 1 ? "DISCOVER" : "REQUEST") + " from " + mac + " -> " + NET + "." + host);
+
+        /* 300 is the old BOOTP size and the options used to fit it with room to spare. The
+           captive-portal URI does not: the header and magic cookie are 240 bytes, the six
+           ordinary options another 33, and the URI itself runs past the end. 576 is the smallest
+           message every DHCP client is required to accept. */
+        byte[] r = new byte[576];
+        r[0] = 2; r[1] = 1; r[2] = 6; r[3] = 0;             /* reply, ethernet, 6-byte address */
+        System.arraycopy(p, 4, r, 4, 4);                    /* the same transaction id */
+        System.arraycopy(p, 10, r, 10, 2);                  /* and flags */
+        put4(r, 16, NET + "." + host);                      /* yours */
+        put4(r, 20, SELF);                                  /* ours */
+        System.arraycopy(p, 28, r, 28, 16);                 /* their hardware address */
+        r[236] = (byte) 0x63; r[237] = (byte) 0x82; r[238] = (byte) 0x53; r[239] = (byte) 0x63;
+
+        int i = 240;
+        r[i++] = 53; r[i++] = 1; r[i++] = (byte) (type == 1 ? 2 : 5);       /* offer or ack */
+        r[i++] = 54; r[i++] = 4; i = put4(r, i, SELF);                      /* which server */
+        r[i++] = 51; r[i++] = 4;
+        r[i++] = (byte) (LEASE_SECONDS >> 24); r[i++] = (byte) (LEASE_SECONDS >> 16);
+        r[i++] = (byte) (LEASE_SECONDS >> 8);  r[i++] = (byte) LEASE_SECONDS;
+        r[i++] = 1; r[i++] = 4; i = put4(r, i, "255.255.255.0");            /* the subnet */
+        r[i++] = 3; r[i++] = 4; i = put4(r, i, SELF);                       /* the way out */
+        r[i++] = 6; r[i++] = 4; i = put4(r, i, SELF);                       /* and who to ask */
+
+        /*
+          Option 114, the captive-portal URI (RFC 8910).
+
+          This is the supported way to tell a phone it is behind a sign-in network, and it is told
+          here - at the moment it is handed its address - rather than left to work it out by
+          probing and being intercepted. Interception is guesswork by comparison: it depends on the
+          phone making an unencrypted probe we happen to answer correctly, on our DNS being the one
+          it asks, and on the phone counting this network as one worth opening a window for. A VPN
+          or private DNS on the phone defeats all three. This defeats none of them, because nothing
+          is being intercepted.
+
+          The URI points at an API endpoint, not the page: RFC 8908 says the phone fetches it and
+          expects JSON saying whether it is captive and where the person should be sent. The probe
+          answers stay as they are, for phones too old to ask.
+        */
+        byte[] uri = CAPTIVE_API.getBytes(java.nio.charset.Charset.forName("US-ASCII"));
+        r[i++] = 114; r[i++] = (byte) uri.length;
+        System.arraycopy(uri, 0, r, i, uri.length); i += uri.length;
+
+        r[i++] = (byte) 255;
+
+        byte[] out = new byte[Math.max(300, i)];
+        System.arraycopy(r, 0, out, 0, Math.min(r.length, out.length));
+        return out;
+    }
+
+    /** The same phone keeps the same address for as long as the hotspot is up. */
+    private synchronized int lease(String mac) {
+        Integer had = leases.get(mac);
+        if (had != null) return had;
+        int host = next++;
+        if (next > 200) next = 20;
+        leases.put(mac, host);
+        return host;
+    }
+
+    private static int put4(byte[] b, int at, String ip) {
+        String[] p = ip.split("\\.");
+        for (int i = 0; i < 4; i++) b[at + i] = (byte) Integer.parseInt(p[i]);
+        return at + 4;
+    }
+}

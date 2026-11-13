@@ -27,6 +27,19 @@ public class MainActivity extends Activity {
        Any longer is dead time the frame spends showing a logo it no longer needs to. */
     private static final long MIN_SPLASH_MS = 400;
     private static final long RETRY_MS = 15000;
+
+    /** The site, told which language the frame was set to, so the wizard does not ask again. */
+    private String homeUrl() {
+        if (host == null) return HOME_URL;
+        String q = "";
+        if (host.lang().length() > 0) q = "?lang=" + host.lang();
+        if (host.netDone()) q = q.length() > 0 ? q + "&net=1" : "?net=1";
+        if (handoff) q = q + (q.length() > 0 ? "&" : "?") + "pair=" + host.pairCode();
+        return HOME_URL + q;
+    }
+
+    /** Where the phone goes to carry on, once it is off the frame's hotspot and back on a network. */
+    String pairLink() { return HOME_URL + "setup#" + host.pairCode(); }
     private static final String TECH_URL = "file:///android_asset/tech.html";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -45,10 +58,21 @@ public class MainActivity extends Activity {
     private ImageView splash;
     private long startedAt;
     private boolean offline;
+    /* True from a failed load of the site until the next attempt starts. WebView reports
+       onPageFinished for a page that FAILED too, with the site's own address, straight after
+       onReceivedError. Without this that call looked like success: it cleared `offline` while the
+       no-internet page was on screen, which silently stopped the retries and made the Wi-Fi
+       button on that page do nothing. */
+    private boolean loadFailed;
+    /** Set while the site is being loaded straight after a phone put this frame on Wi-Fi. */
+    private boolean handoff = false;
     
     private final Runnable retry = new Runnable() {
         @Override public void run() {
-            if (offline && web != null) web.loadUrl(HOME_URL);
+            /* While the hotspot is up the buyer is in the middle of setting Wi-Fi up on their
+               phone, and reloading underneath them would throw that away. The phone's own answer
+               brings the site back instead, through onHotspotJoined(). */
+            if (offline && web != null && !host.netBusy()) { loadFailed = false; web.loadUrl(homeUrl()); }
         }
     };
 
@@ -88,7 +112,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         setContentView(root);
-        web.loadUrl(HOME_URL);
+        web.loadUrl(homeUrl());
         host.selfTest();
         ui.postDelayed(updateTick, 90 * 1000);
         // Off the critical path: the wallpaper only matters on the next boot, not this one.
@@ -101,6 +125,7 @@ public class MainActivity extends Activity {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
             host.trusted = url != null && url.startsWith(HOME_URL);
+            host.local = url != null && url.startsWith("file:///android_asset/");
         }
 
         @Override
@@ -111,7 +136,19 @@ public class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
-            if (url != null && url.startsWith("https://")) offline = false;
+            if (url != null && url.startsWith("https://") && !loadFailed) {
+                offline = false;
+                /* The frame is on the network. The phone is still watching the setup page over
+                   the hotspot, so it stays up a little longer to show that it worked. */
+                if (host.hotspotUp() && joinedAt == 0) {
+                    joinedAt = android.os.SystemClock.elapsedRealtime();
+                    ui.removeCallbacks(dropWatch);
+                    ui.postDelayed(dropWatch, 3000);
+                }
+                /* The site has the code now and has opened the session with it; a reload later
+                   on is a different occasion and gets a code of its own. */
+                if (handoff) { handoff = false; host.pairUsed(); }
+            }
             hideSplash();
         }
 
@@ -129,6 +166,7 @@ public class MainActivity extends Activity {
 
     private void goOffline() {
         offline = true;
+        loadFailed = true;
         ui.removeCallbacks(retry);
         ui.postDelayed(retry, RETRY_MS);
         web.loadUrl(OFFLINE_URL);
@@ -176,6 +214,62 @@ public class MainActivity extends Activity {
 
     HostControl host() { return host; }
     boolean isOffline() { return offline; }
+    boolean isOnline() { return !offline; }
+
+    private long joinedAt = 0;
+    private static final long QUIET_MS = 30000;    /* the phone has stopped asking: it has gone */
+    /* Long enough for the buyer to choose a masjid, a photo and a sound on their phone, which is
+       what the hotspot is now carrying. The silence timer above is the real guard: a phone that
+       walks away takes the hotspot down thirty seconds later whatever this says. */
+    private static final long CAP_MS  = 900000;    /* and a hard stop, whatever it is doing */
+
+    /*
+      When to take the hotspot down.
+
+      A fixed delay was wrong in both directions. Eight seconds after the join cut the buyer off
+      mid-setup - the frame was online, but the phone still had a screen to show and a button to
+      offer, and the network it was standing on vanished underneath it. Two minutes was wrong the
+      other way, leaving an open access point up long after the phone had finished with it.
+
+      Neither guess was needed: the phone says whether it is still there by asking for things. So
+      the hotspot stays while it is being used and goes thirty seconds after the phone falls
+      silent - with a hard cap, because a hotspot must never be left running on a wall-mounted
+      frame whatever else happens.
+    */
+    private final Runnable dropWatch = new Runnable() {
+        @Override public void run() {
+            if (host == null || !host.hotspotUp()) return;
+            long sinceJoin = android.os.SystemClock.elapsedRealtime() - joinedAt;
+            if (host.hotspotQuietFor() > QUIET_MS || sinceJoin > CAP_MS) { host.netEnd(); return; }
+            ui.postDelayed(this, 3000);
+        }
+    };
+
+    private final Runnable dropHotspot = new Runnable() {
+        @Override public void run() { host.netEnd(); }
+    };
+
+    /** The phone sent a network and the frame joined it: try the site again straight away. */
+    void onHotspotJoined() {
+        host.markNetDone();
+        handoff = true;
+        /* The phone is still sitting on the hotspot, and the page it is holding cannot leave the
+           window it is in. Now that the frame has a connection, it carries the phone's traffic
+           out through it, so that page reaches the setup session on its own. */
+        host.netShare();
+        ui.post(new Runnable() {
+            @Override public void run() {
+                loadFailed = false;
+                if (web != null) web.loadUrl(homeUrl());
+            }
+        });
+        /* If the site still will not load, the hotspot has done its job either way and must not
+           be left running on a wall-mounted frame. */
+        joinedAt = android.os.SystemClock.elapsedRealtime();
+        ui.removeCallbacks(dropHotspot);
+        ui.removeCallbacks(dropWatch);
+        ui.postDelayed(dropWatch, 3000);
+    }
 
     /** Shows the technician page (PIN pad, then the app grid) on top of the display. */
     void showTech() {
@@ -244,6 +338,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         ui.removeCallbacksAndMessages(null);
+        /* A hotspot is a setup tool, never something left running behind a closed app. */
+        if (host != null) host.netEnd();
         hideTech();
         if (web != null) { root.removeView(web); web.destroy(); }
         super.onDestroy();

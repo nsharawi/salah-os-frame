@@ -55,6 +55,8 @@ public class HostControl {
     private volatile String apPass = "";
     private volatile String apUrl = "";
     private volatile String preScan = "";
+    /** True while the access point is running without encryption - testing only. */
+    private volatile boolean apOpen = false;
     private volatile long preScanAt = 0;
     private final Object radio = new Object();   /* one thread at a time may touch the Wi-Fi radio */
 
@@ -571,6 +573,7 @@ public class HostControl {
             o.put("name", frameName());
             o.put("state", server != null ? server.state() : "idle");
             o.put("joining", server != null ? server.joining() : "");
+            o.put("open", apOpen);
         } catch (Throwable ignored) { }
         return o.toString();
     }
@@ -617,8 +620,26 @@ public class HostControl {
               12 November 2026. The printed word is not trusted either way — what counts is
               whether an access point interface appears.
             */
+            /*
+              Open, only when somebody has deliberately asked for it.
+
+              WPA2 is the only thing protecting the buyer's own Wi-Fi password, which their phone
+              sends to this frame over this link in plain HTTP. Open the access point and anyone
+              in radio range during those few minutes can read it off the air. So an open one is
+              reachable for testing - touch /data/local/tmp/salah-open-ap and restart - and never
+              by default, and the log says plainly when it is in use.
+
+              A hidden name is not offered because it is not protection: the name is recoverable
+              from the air whether or not it is advertised, and on an open network everything is
+              readable either way. start-softap has no flag for it in any case.
+            */
+            boolean open = new java.io.File("/data/local/tmp/salah-open-ap").exists();
+            apOpen = open;
+            if (open) Log.w(TAG, "OPEN access point - no encryption. For testing only: the "
+                               + "buyer's own Wi-Fi password crosses this link unprotected.");
+            String how = open ? "open" : ("wpa2 " + quote(pass));
             String out = outShell("cmd wifi stop-softap >/dev/null 2>&1; sleep 1; "
-                    + "cmd wifi start-softap " + quote(ssid) + " wpa2 " + quote(pass));
+                    + "cmd wifi start-softap " + quote(ssid) + " " + how);
             String iface = apInterface(out);
             for (int i = 0; i < 16 && iface == null; i++) {
                 try { Thread.sleep(500); } catch (InterruptedException ignored) { }

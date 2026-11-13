@@ -283,7 +283,11 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
            has, the frame answers the check every phone makes for a way out and the setup page
            opens by itself, the way hotel Wi-Fi does. Nobody is told any of that: a code under a
            heading is a thing people already know how to use. */
-        try { id('q1').innerHTML = window.SalahQR.svg('WIFI:T:WPA;S:' + d.ssid + ';P:' + d.pass + ';;'); } catch (e) { }
+        /* An open access point is written differently: a phone handed T:WPA with no passphrase
+           joins and then sits there failing to authenticate. */
+        var join = d.open ? 'WIFI:T:nopass;S:' + d.ssid + ';;'
+                          : 'WIFI:T:WPA;S:' + d.ssid + ';P:' + d.pass + ';;';
+        try { id('q1').innerHTML = window.SalahQR.svg(join); } catch (e) { }
         id('ssid').textContent = d.ssid;
         id('qcap').textContent = t('Scan to connect Wi-Fi');
       }

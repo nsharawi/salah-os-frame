@@ -77,6 +77,10 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
 .qr svg rect{fill:none}
 .qr svg path{fill:var(--on)}
 .qcap{font-size:22px;line-height:28px;color:var(--dim);text-align:center}
+/* Android opens the page by itself only when it feels like it - a network joined from a camera
+   is not always one it counts as chosen by hand. One line costs nothing and removes the
+   dependency; on a phone that does open by itself, it has already been read and forgotten. */
+.qhint{font-size:14px;line-height:20px;color:var(--dim);text-align:center;margin-top:-8px}
 .name{margin:20px 0 0;font-size:24px;line-height:32px;font-weight:400;color:var(--p);letter-spacing:0;unicode-bidi:plaintext}
 /* Material's indeterminate circular indicator: the ring turns while the arc inside it grows and
    shrinks. The circle is 125.6 units around, which is where the dash lengths come from. The arc
@@ -160,6 +164,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
   <div class="wzr"><div class="wzi" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px">
     <div class="qr" id="q1"></div>
     <div class="qcap" id="qcap"></div>
+    <div class="qhint" id="qhint"></div>
   </div></div>
   <div class="wzf"><span class="s" id="live"></span></div>
 </section>
@@ -180,6 +185,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'Set up from your phone': 'أعدّ الإطار من هاتفك',
     'Looking for networks…': 'جارٍ البحث عن الشبكات…',
     'Scan to connect Wi-Fi': 'امسح الرمز للاتصال بالواي فاي',
+    'If your phone asks, tap Sign in.': 'إذا طلب هاتفك ذلك، اضغط تسجيل الدخول.',
     'Connecting to': 'جارٍ الاتصال بـ',
     'Connected': 'تم الاتصال',
     'Salah OS is starting.': 'جارٍ بدء تشغيل Salah OS.',
@@ -283,6 +289,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
         try { id('q1').innerHTML = window.SalahQR.svg('WIFI:T:WPA;S:' + d.ssid + ';P:' + d.pass + ';;'); } catch (e) { }
         id('ssid').textContent = d.ssid;
         id('qcap').textContent = t('Scan to connect Wi-Fi');
+        id('qhint').textContent = t('If your phone asks, tap Sign in.');
       }
       var live = id('live');
       live.innerHTML = '';

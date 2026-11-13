@@ -707,6 +707,9 @@ public class HostControl {
 
     boolean hotspotUp() { return server != null && server.isRunning(); }
 
+    /** How long the phone has been silent. Long.MAX_VALUE if there is no hotspot to be silent on. */
+    long hotspotQuietFor() { return server == null ? Long.MAX_VALUE : server.quietFor(); }
+
     /**
      * True from the moment first-run setup starts until it is finished with.
      *

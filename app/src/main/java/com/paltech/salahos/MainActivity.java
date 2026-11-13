@@ -140,7 +140,11 @@ public class MainActivity extends Activity {
                 offline = false;
                 /* The frame is on the network. The phone is still watching the setup page over
                    the hotspot, so it stays up a little longer to show that it worked. */
-                if (host.hotspotUp()) { ui.removeCallbacks(dropHotspot); ui.postDelayed(dropHotspot, 8000); }
+                if (host.hotspotUp() && joinedAt == 0) {
+                    joinedAt = android.os.SystemClock.elapsedRealtime();
+                    ui.removeCallbacks(dropWatch);
+                    ui.postDelayed(dropWatch, 3000);
+                }
                 /* The site has the code now and has opened the session with it; a reload later
                    on is a different occasion and gets a code of its own. */
                 if (handoff) { handoff = false; host.pairUsed(); }
@@ -212,6 +216,32 @@ public class MainActivity extends Activity {
     boolean isOffline() { return offline; }
     boolean isOnline() { return !offline; }
 
+    private long joinedAt = 0;
+    private static final long QUIET_MS = 30000;    /* the phone has stopped asking: it has gone */
+    private static final long CAP_MS  = 180000;    /* and a hard stop, whatever it is doing */
+
+    /*
+      When to take the hotspot down.
+
+      A fixed delay was wrong in both directions. Eight seconds after the join cut the buyer off
+      mid-setup - the frame was online, but the phone still had a screen to show and a button to
+      offer, and the network it was standing on vanished underneath it. Two minutes was wrong the
+      other way, leaving an open access point up long after the phone had finished with it.
+
+      Neither guess was needed: the phone says whether it is still there by asking for things. So
+      the hotspot stays while it is being used and goes thirty seconds after the phone falls
+      silent - with a hard cap, because a hotspot must never be left running on a wall-mounted
+      frame whatever else happens.
+    */
+    private final Runnable dropWatch = new Runnable() {
+        @Override public void run() {
+            if (host == null || !host.hotspotUp()) return;
+            long sinceJoin = android.os.SystemClock.elapsedRealtime() - joinedAt;
+            if (host.hotspotQuietFor() > QUIET_MS || sinceJoin > CAP_MS) { host.netEnd(); return; }
+            ui.postDelayed(this, 3000);
+        }
+    };
+
     private final Runnable dropHotspot = new Runnable() {
         @Override public void run() { host.netEnd(); }
     };
@@ -228,12 +258,10 @@ public class MainActivity extends Activity {
         });
         /* If the site still will not load, the hotspot has done its job either way and must not
            be left running on a wall-mounted frame. */
-        /* The phone is holding the link by now and has nothing left to ask the frame. Every
-           second the hotspot stays up is a second the phone is stuck on a network with no way
-           out, so it comes down promptly - and in any case must never be left running on a
-           wall-mounted frame. */
+        joinedAt = android.os.SystemClock.elapsedRealtime();
         ui.removeCallbacks(dropHotspot);
-        ui.postDelayed(dropHotspot, 8000);
+        ui.removeCallbacks(dropWatch);
+        ui.postDelayed(dropWatch, 3000);
     }
 
     /** Shows the technician page (PIN pad, then the app grid) on top of the display. */

@@ -51,6 +51,9 @@ final class HotspotServer {
     private volatile boolean fellBack;
     private volatile int port = PORT;
 
+    /** When the phone last asked us anything - the only honest sign it is still there. */
+    private volatile long lastSeen = 0;
+
     /** idle, scanning, joining, connected or failed. Read by the phone page through /state. */
     private volatile String state = "idle";
     private volatile String stateNote = "";
@@ -61,6 +64,11 @@ final class HotspotServer {
     boolean isRunning() { return running; }
 
     String state() { return state; }
+
+    /** Milliseconds since the phone last asked for anything; Long.MAX_VALUE if it never has. */
+    long quietFor() {
+        return lastSeen == 0 ? Long.MAX_VALUE : android.os.SystemClock.elapsedRealtime() - lastSeen;
+    }
 
     /** The network the phone asked the frame to join, so the frame can name it on its own screen. */
     String joining() { return joined; }
@@ -164,6 +172,7 @@ final class HotspotServer {
             }
         }
 
+        lastSeen = android.os.SystemClock.elapsedRealtime();
         Log.i(TAG, method + " " + path + " from " + c.getInetAddress());
         if ("/networks".equals(path)) { send(out, 200, "application/json", networks()); return; }
         if ("/state".equals(path))    { send(out, 200, "application/json", stateJson()); return; }

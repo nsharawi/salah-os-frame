@@ -164,6 +164,10 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
      stays no. While the hotspot is still up the frame answers port 80 and nothing else, so an
      https request aimed at it is refused rather than hijacked: there is no false yes here. */
   var netOk = false, reachT = 0;
+  /* Opened from the link on the frame rather than the sign-in notice, which means this is the
+     phone's ordinary browser: the tab outlives the hotspot, so once the site is reachable there
+     is nothing to decide and no reason to ask for a tap to do the only thing left. */
+  var FULL = location.pathname.indexOf('/setup') === 0;
   function reach() {
     if (netOk || reachT) return;
     var ping = function () {
@@ -171,7 +175,9 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
       im.onload = function () {
         if (netOk) return;
         netOk = true; clearInterval(reachT); reachT = 0;
-        if (phase === 'done') draw();
+        if (phase !== 'done') return;
+        if (FULL && go) { setTimeout(function () { location.href = go; }, 1200); return; }
+        draw();
       };
       im.src = 'https://salah-os.web.app/icons/icon-192.png?x=' + Date.now();
     };

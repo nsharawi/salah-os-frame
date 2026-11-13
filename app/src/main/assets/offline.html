@@ -193,6 +193,9 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'Set up from your phone': 'أعدّ الإطار من هاتفك',
     'Looking for networks…': 'جارٍ البحث عن الشبكات…',
     'Scan to connect Wi-Fi': 'امسح الرمز للاتصال بالواي فاي',
+    'Scan to open setup': 'امسح الرمز لفتح صفحة الإعداد',
+    'Scan this, or tap the sign-in notice on your phone':
+      'امسح هذا الرمز، أو اضغط إشعار تسجيل الدخول في هاتفك',
     'Enter this code': 'أدخل هذا الرمز',
     'On your phone, to finish setting up': 'في هاتفك، لإكمال الإعداد',
     'Phone connected': 'تم اتصال الهاتف',
@@ -208,6 +211,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'Phone setup is not available on this frame.': 'الإعداد من الهاتف غير متاح على هذا الإطار.'
   };
   var F = window.SalahFrame, lang = '', chosen = 'en', shown = '', shownCode = '';
+  var joinedAt = 0;
   function t(s) { return lang === 'ar' && AR[s] ? AR[s] : s; }
   function id(x) { return document.getElementById(x); }
   function screen(which) {
@@ -322,20 +326,11 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
        setup has gone back to the beginning. */
     var busy = d.state === 'joining' || d.state === 'connected' || d.state === 'failed';
     if (d.phase === 'ready' && d.code && d.asked && !d.unlocked && !busy) { showCode(d.code); return; }
-    if (d.phase === 'ready' && d.client && !d.asked && !busy) {
-      /* This used to promise that the page was opening by itself. On a phone that joined from
-         the camera it is not, and will not: Android opens a sign-in page unprompted only for a
-         network chosen in the Wi-Fi picker, and one the camera joined gets a notification and
-         nothing more. That is Android's decision, taken from how the network was joined, and
-         nothing the frame serves changes it - every probe answer, redirect and DHCP option was
-         already right while this screen said the wrong thing.
-
-         So it asks for the one tap instead of promising there is none. The frame says this only
-         once a phone has actually taken an address and has not yet reached the page, which is
-         exactly the moment the notice is sitting unread on it. */
-      stage('Phone connected', t('Tap the sign-in notice on your phone to carry on.'), false);
-      return;
-    }
+    /* A phone that has an address but has not reached the page used to get a screen of its own
+       here, asking for the tap on the sign-in notice. That screen took the square away at the
+       one moment it had the most useful thing to offer - the link into setup, with the figures
+       already in it. The square stays instead, and the caption underneath it asks for the tap
+       only once the link has sat unscanned for a few seconds. */
 
     if (d.state === 'joining') { stage('Connecting to', d.joining || '', false, true); return; }
     if (d.state === 'connected') { stage('Connected', t('Salah OS is starting.'), true); return; }
@@ -344,20 +339,39 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     if (d.phase === 'ready' && d.ssid) {
       id('ssid').hidden = false; id('q1').hidden = false; id('qcap').hidden = false;
       id('code').hidden = true; id('codecap').hidden = true;
-      if (shown !== d.ssid + d.url) {
-        shown = d.ssid + d.url;
-        /* One code and nothing else. Joining the frame is all the phone needs to be told; once it
-           has, the frame answers the check every phone makes for a way out and the setup page
-           opens by itself, the way hotel Wi-Fi does. Nobody is told any of that: a code under a
-           heading is a thing people already know how to use. */
+      /*
+        The square does two jobs, one after the other, and the buyer is holding their phone up
+        at the frame for both.
+
+        Before a phone has joined it is a way onto the network. Once one has an address but has
+        not reached the page, being on the network is no longer the thing it needs, so the same
+        square becomes the way into setup - with the figures carried in the link, so there is
+        nothing left to type. It also opens in the phone's ordinary browser rather than the
+        sign-in window, and a page there goes on living after the hotspot does not.
+
+        The sign-in notice is raised the whole time and still works, so nothing here is the only
+        way in. If the link has not been followed after a few seconds the caption says so, for
+        the phone that cannot reach the frame from its ordinary browser.
+      */
+      var toSetup = !!(d.client && !d.asked && !d.unlocked && d.code);
+      if (!d.client) joinedAt = 0;
+      else if (!joinedAt) joinedAt = Date.now();
+
+      if (shown !== (toSetup ? 's' : 'j') + d.ssid + d.url + d.code) {
+        shown = (toSetup ? 's' : 'j') + d.ssid + d.url + d.code;
         /* An open access point is written differently: a phone handed T:WPA with no passphrase
            joins and then sits there failing to authenticate. */
-        var join = d.open ? 'WIFI:T:nopass;S:' + d.ssid + ';;'
-                          : 'WIFI:T:WPA;S:' + d.ssid + ';P:' + d.pass + ';;';
-        try { id('q1').innerHTML = window.SalahQR.svg(join); } catch (e) { }
+        var payload = toSetup
+          ? String(d.url || 'http://192.168.49.1/').replace(/\/+$/, '') + '/setup?c=' + d.code
+          : (d.open ? 'WIFI:T:nopass;S:' + d.ssid + ';;'
+                    : 'WIFI:T:WPA;S:' + d.ssid + ';P:' + d.pass + ';;');
+        try { id('q1').innerHTML = window.SalahQR.svg(payload); } catch (e) { }
         id('ssid').textContent = d.ssid;
-        id('qcap').textContent = t('Scan to connect Wi-Fi');
       }
+      id('qcap').textContent = !toSetup ? t('Scan to connect Wi-Fi')
+        : (joinedAt && Date.now() - joinedAt > 9000)
+          ? t('Scan this, or tap the sign-in notice on your phone')
+          : t('Scan to open setup');
       var live = id('live');
       live.innerHTML = '';
       if (LIVE[d.state]) {

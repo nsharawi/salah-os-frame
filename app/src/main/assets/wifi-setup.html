@@ -114,7 +114,6 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     'Open': 'مفتوحة',
     'Enter the code': 'أدخل الرمز',
     'It is showing on the frame now.': 'يظهر الآن على شاشة الإطار.',
-    'Continue': 'متابعة',
     'That code did not match.': 'الرمز غير صحيح.',
     'Tries left:': 'المحاولات المتبقية:',
     'Too many tries. Restart the frame to try again.': 'عدد المحاولات كبير. أعد تشغيل الإطار للمحاولة من جديد.',
@@ -233,7 +232,8 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
         };
         el.onkeydown = function (e) {
           var k = e.key;
-          if (k === 'Backspace' && !this.value && idx > 0) { e.preventDefault(); at(idx - 1).focus(); at(idx - 1).value = ''; at(idx - 1).classList.remove('on'); }
+          if (k === 'Enter') { e.preventDefault(); sendCode(); }
+          else if (k === 'Backspace' && !this.value && idx > 0) { e.preventDefault(); at(idx - 1).focus(); at(idx - 1).value = ''; at(idx - 1).classList.remove('on'); }
           else if (k === 'ArrowLeft' && idx > 0) { e.preventDefault(); at(idx - 1).focus(); }
           else if (k === 'ArrowRight' && idx < boxes.length - 1) { e.preventDefault(); at(idx + 1).focus(); }
         };
@@ -285,9 +285,10 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
       h = '<h1>' + esc(t('Enter the code')) + '</h1>'
         + '<p class="sub">' + esc(t('It is showing on the frame now.')) + '</p>'
         + (note ? '<p class="note bad">' + esc(note) + '</p>' : '')
-        + '<div class="pins" id="pins">' + pinBoxes() + '</div>'
-        + '<div class="row"><button class="btn" id="unlock" type="button">'
-        + esc(t('Continue')) + '</button></div>';
+        /* No button. The sixth figure is the enter - there is nothing left to decide once it
+           is in, and a button there only asks somebody to confirm what they have just done.
+           The keyboard's own Enter still works; it simply is not drawn. */
+        + '<div class="pins" id="pins">' + pinBoxes() + '</div>';
     } else if (phase === 'list') {
       h = '<h1>' + esc(t('Choose your Wi-Fi')) + '</h1><p class="sub">' + esc(t('Pick the network this frame should use. It only has to be done once.')) + '</p>';
       if (!nets.length) h += '<p class="note">' + esc(t('No networks found.')) + '</p>';
@@ -349,8 +350,6 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     var other = app.querySelector('.it[data-other]');
     if (other) other.onclick = function () { pick = { ssid: '', sec: 'wpa2' }; manual = true; phase = 'pass'; draw(); };
     wirePins(app);
-    var unlockBtn = app.querySelector('#unlock');
-    if (unlockBtn) unlockBtn.onclick = sendCode;
 
     var a1 = app.querySelector('#again'), a2 = app.querySelector('#again2');
     if (a1) a1.onclick = scan;

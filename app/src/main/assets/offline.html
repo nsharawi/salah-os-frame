@@ -197,6 +197,8 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'On your phone, to finish setting up': 'في هاتفك، لإكمال الإعداد',
     'Phone connected': 'تم اتصال الهاتف',
     'Opening setup on your phone…': 'جارٍ فتح صفحة الإعداد في هاتفك…',
+    'Tap the sign-in notice on your phone to carry on.':
+      'اضغط على إشعار تسجيل الدخول في هاتفك للمتابعة.',
     'Connecting to': 'جارٍ الاتصال بـ',
     'Connected': 'تم الاتصال',
     'Salah OS is starting.': 'جارٍ بدء تشغيل Salah OS.',
@@ -321,7 +323,17 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     var busy = d.state === 'joining' || d.state === 'connected' || d.state === 'failed';
     if (d.phase === 'ready' && d.code && d.asked && !d.unlocked && !busy) { showCode(d.code); return; }
     if (d.phase === 'ready' && d.client && !d.asked && !busy) {
-      stage('Phone connected', t('Opening setup on your phone…'), false);
+      /* This used to promise that the page was opening by itself. On a phone that joined from
+         the camera it is not, and will not: Android opens a sign-in page unprompted only for a
+         network chosen in the Wi-Fi picker, and one the camera joined gets a notification and
+         nothing more. That is Android's decision, taken from how the network was joined, and
+         nothing the frame serves changes it - every probe answer, redirect and DHCP option was
+         already right while this screen said the wrong thing.
+
+         So it asks for the one tap instead of promising there is none. The frame says this only
+         once a phone has actually taken an address and has not yet reached the page, which is
+         exactly the moment the notice is sitting unread on it. */
+      stage('Phone connected', t('Tap the sign-in notice on your phone to carry on.'), false);
       return;
     }
 

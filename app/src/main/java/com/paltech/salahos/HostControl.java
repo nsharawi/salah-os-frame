@@ -591,6 +591,10 @@ public class HostControl {
             o.put("joining", server != null ? server.joining() : "");
             o.put("open", apOpen);
             o.put("code", apCode);
+            /* What the frame's own screen follows: somebody has joined, and then somebody has
+               the page open. One at a time, in the order they happen. */
+            o.put("client", dhcp != null && dhcp.served());
+            o.put("asked", server != null && server.sawPage());
         } catch (Throwable ignored) { }
         return o.toString();
     }

@@ -64,6 +64,8 @@ final class HotspotServer {
     */
     private final java.util.Set<String> unlocked =
             java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
+    private volatile boolean sawPage = false;
+    boolean sawPage() { return sawPage; }
     private volatile int wrongTries = 0;
     private static final int MAX_TRIES = 10;
 
@@ -218,7 +220,11 @@ final class HotspotServer {
         if ("/networks".equals(path)) { send(out, 200, "application/json", networks()); return; }
         if ("/state".equals(path))    { send(out, 200, "application/json", stateJson()); return; }
         if ("/join".equals(path) && "POST".equals(method)) { send(out, 200, "application/json", join(body)); return; }
-        if ("/".equals(path) || "/index.html".equals(path)) { sendAsset(out, "wifi-setup.html"); return; }
+        if ("/".equals(path) || "/index.html".equals(path)) {
+            sawPage = true;    /* the phone is looking at the page it will type the code into */
+            sendAsset(out, "wifi-setup.html");
+            return;
+        }
         if ("/qr.js".equals(path)) { sendAsset(out, "qr.js"); return; }
 
         /*

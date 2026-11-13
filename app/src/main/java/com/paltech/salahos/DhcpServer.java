@@ -36,6 +36,10 @@ final class DhcpServer {
     static final String BCAST = NET + ".255";
     /** Where a phone is told to ask whether this network wants it to sign in (RFC 8908/8910). */
     static final String CAPTIVE_API = "http://" + NET + ".1/captive-api";
+
+    /** True once a phone has asked us for an address: the earliest sign anyone has joined. */
+    private volatile boolean served = false;
+    boolean served() { return served; }
     private static final int LEASE_SECONDS = 3600;
 
     private DatagramSocket sock;      /* only on the fallback path */
@@ -201,6 +205,7 @@ final class DhcpServer {
         StringBuilder mac = new StringBuilder();
         for (int i = 28; i < 34; i++) mac.append(String.format("%02x", p[i] & 255));
         int host = lease(mac.toString());
+        served = true;
         Log.i(TAG, (type == 1 ? "DISCOVER" : "REQUEST") + " from " + mac + " -> " + NET + "." + host);
 
         /* 300 is the old BOOTP size and the options used to fit it with room to spare. The

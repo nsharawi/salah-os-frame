@@ -196,7 +196,10 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'Set up from your phone': 'أعدّ الإطار من هاتفك',
     'Looking for networks…': 'جارٍ البحث عن الشبكات…',
     'Scan to connect Wi-Fi': 'امسح الرمز للاتصال بالواي فاي',
-    'Then enter this code on your phone': 'ثم أدخل هذا الرمز في هاتفك',
+    'Enter this code': 'أدخل هذا الرمز',
+    'On your phone, to finish setting up': 'في هاتفك، لإكمال الإعداد',
+    'Phone connected': 'تم اتصال الهاتف',
+    'Opening setup on your phone…': 'جارٍ فتح صفحة الإعداد في هاتفك…',
     'Connecting to': 'جارٍ الاتصال بـ',
     'Connected': 'تم الاتصال',
     'Salah OS is starting.': 'جارٍ بدء تشغيل Salah OS.',
@@ -205,7 +208,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'That did not work. Try again on your phone.': 'لم ينجح. حاول مرة أخرى من هاتفك.',
     'Phone setup is not available on this frame.': 'الإعداد من الهاتف غير متاح على هذا الإطار.'
   };
-  var F = window.SalahFrame, lang = '', chosen = 'en', shown = '';
+  var F = window.SalahFrame, lang = '', chosen = 'en', shown = '', shownCode = '';
   function t(s) { return lang === 'ar' && AR[s] ? AR[s] : s; }
   function id(x) { return document.getElementById(x); }
   function screen(which) {
@@ -271,6 +274,24 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     });
   }
 
+  /* The figures, alone on the screen, at the moment they are wanted. */
+  function showCode(value) {
+    if (shownCode !== value) {
+      var cells = '';
+      for (var i = 0; i < value.length; i++) {
+        if (i === 3) cells += '<span class="sp"></span>';
+        cells += '<span class="cell">' + value.charAt(i) + '</span>';
+      }
+      id('code').innerHTML = cells;
+      shownCode = value;
+    }
+    id('hh').textContent = t('Enter this code');
+    id('codecap').textContent = t('On your phone, to finish setting up');
+    id('ssid').hidden = true; id('q1').hidden = true; id('qcap').hidden = true;
+    id('code').hidden = false; id('codecap').hidden = false;
+    screen('hot');
+  }
+
   function stage(head, sub, done, strong) {
     id('wh').textContent = t(head);
     /* The network's name is the subject of the sentence, and a Latin name on an Arabic frame
@@ -287,10 +308,27 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
   function tick() {
     var d;
     try { d = JSON.parse(F.netInfo()); } catch (e) { return; }
+    /*
+       The right-hand side shows one thing at a time, in the order the buyer does them.
+
+       The code used to sit under the square from the moment the screen appeared, which asks
+       somebody to remember six figures before they have done the thing that needs them. It now
+       waits: the square until a phone takes an address, a turning ring while that phone finds its
+       way to the page, and the figures once it is there - the moment they are about to be typed.
+    */
+    var busyJoining = d.state === 'joining' || d.state === 'connected';
+    if (d.phase === 'ready' && d.code && d.asked && !busyJoining) { showCode(d.code); return; }
+    if (d.phase === 'ready' && d.client && !d.asked && !busyJoining) {
+      stage('Phone connected', t('Opening setup on your phone…'), false);
+      return;
+    }
+
     if (d.state === 'joining') { stage('Connecting to', d.joining || '', false, true); return; }
     if (d.state === 'connected') { stage('Connected', t('Salah OS is starting.'), true); return; }
 
     if (d.phase === 'ready' && d.ssid) {
+      id('ssid').hidden = false; id('q1').hidden = false; id('qcap').hidden = false;
+      id('code').hidden = true; id('codecap').hidden = true;
       if (shown !== d.ssid + d.url) {
         shown = d.ssid + d.url;
         /* One code and nothing else. Joining the frame is all the phone needs to be told; once it
@@ -304,17 +342,6 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
         try { id('q1').innerHTML = window.SalahQR.svg(join); } catch (e) { }
         id('ssid').textContent = d.ssid;
         id('qcap').textContent = t('Scan to connect Wi-Fi');
-        var code = id('code'), ccap = id('codecap');
-        if (d.code) {
-          var cells = '';
-          for (var ci = 0; ci < d.code.length; ci++) {
-            if (ci === 3) cells += '<span class="sp"></span>';
-            cells += '<span class="cell">' + d.code.charAt(ci) + '</span>';
-          }
-          code.innerHTML = cells;
-          ccap.textContent = t('Then enter this code on your phone');
-          code.hidden = false; ccap.hidden = false;
-        } else { code.hidden = true; ccap.hidden = true; }
       }
       var live = id('live');
       live.innerHTML = '';

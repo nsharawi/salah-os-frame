@@ -310,15 +310,24 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
        waits: the square until a phone takes an address, a turning ring while that phone finds its
        way to the page, and the figures once it is there - the moment they are about to be typed.
     */
-    var busyJoining = d.state === 'joining' || d.state === 'connected';
-    if (d.phase === 'ready' && d.code && d.asked && !busyJoining) { showCode(d.code); return; }
-    if (d.phase === 'ready' && d.client && !d.asked && !busyJoining) {
+    /* A password typed wrong used to send this screen back to the figures. The join failed, so
+       the frame was neither joining nor connected, and the two tests above fell through to the
+       code - which the phone had already typed in and was long past. The buyer was looking at a
+       demand for a code while their phone offered them another go at the password.
+
+       Once a phone is through the gate the figures have done their job, so the frame does not ask
+       again whatever happens next, and a failed attempt says what it is instead of pretending the
+       setup has gone back to the beginning. */
+    var busy = d.state === 'joining' || d.state === 'connected' || d.state === 'failed';
+    if (d.phase === 'ready' && d.code && d.asked && !d.unlocked && !busy) { showCode(d.code); return; }
+    if (d.phase === 'ready' && d.client && !d.asked && !busy) {
       stage('Phone connected', t('Opening setup on your phone…'), false);
       return;
     }
 
     if (d.state === 'joining') { stage('Connecting to', d.joining || '', false, true); return; }
     if (d.state === 'connected') { stage('Connected', t('Salah OS is starting.'), true); return; }
+    if (d.state === 'failed') { stage('Phone connected', t('That did not work. Try again on your phone.'), false); return; }
 
     if (d.phase === 'ready' && d.ssid) {
       id('ssid').hidden = false; id('q1').hidden = false; id('qcap').hidden = false;

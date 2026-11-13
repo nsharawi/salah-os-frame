@@ -596,6 +596,7 @@ public class HostControl {
                the page open. One at a time, in the order they happen. */
             o.put("client", dhcp != null && dhcp.served());
             o.put("asked", server != null && server.sawPage());
+            o.put("unlocked", server != null && server.unlockedAny());
         } catch (Throwable ignored) { }
         return o.toString();
     }

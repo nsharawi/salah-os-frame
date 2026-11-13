@@ -64,6 +64,9 @@ final class HotspotServer {
     */
     private final java.util.Set<String> unlocked =
             java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
+
+    /** True once a phone has typed the code in. The frame has no reason to ask for it again. */
+    boolean unlockedAny() { return !unlocked.isEmpty(); }
     private volatile boolean sawPage = false;
     boolean sawPage() { return sawPage; }
     private volatile int wrongTries = 0;

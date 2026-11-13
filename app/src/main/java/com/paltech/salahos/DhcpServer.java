@@ -34,6 +34,8 @@ final class DhcpServer {
     static final String NET = "192.168.49";
     static final String SELF = NET + ".1";
     static final String BCAST = NET + ".255";
+    /** Where a phone is told to ask whether this network wants it to sign in (RFC 8908/8910). */
+    static final String CAPTIVE_API = "http://" + NET + ".1/captive-api";
     private static final int LEASE_SECONDS = 3600;
 
     private DatagramSocket sock;      /* only on the fallback path */
@@ -180,7 +182,11 @@ final class DhcpServer {
         int host = lease(mac.toString());
         Log.i(TAG, (type == 1 ? "DISCOVER" : "REQUEST") + " from " + mac + " -> " + NET + "." + host);
 
-        byte[] r = new byte[300];
+        /* 300 is the old BOOTP size and the options used to fit it with room to spare. The
+           captive-portal URI does not: the header and magic cookie are 240 bytes, the six
+           ordinary options another 33, and the URI itself runs past the end. 576 is the smallest
+           message every DHCP client is required to accept. */
+        byte[] r = new byte[576];
         r[0] = 2; r[1] = 1; r[2] = 6; r[3] = 0;             /* reply, ethernet, 6-byte address */
         System.arraycopy(p, 4, r, 4, 4);                    /* the same transaction id */
         System.arraycopy(p, 10, r, 10, 2);                  /* and flags */
@@ -198,6 +204,26 @@ final class DhcpServer {
         r[i++] = 1; r[i++] = 4; i = put4(r, i, "255.255.255.0");            /* the subnet */
         r[i++] = 3; r[i++] = 4; i = put4(r, i, SELF);                       /* the way out */
         r[i++] = 6; r[i++] = 4; i = put4(r, i, SELF);                       /* and who to ask */
+
+        /*
+          Option 114, the captive-portal URI (RFC 8910).
+
+          This is the supported way to tell a phone it is behind a sign-in network, and it is told
+          here - at the moment it is handed its address - rather than left to work it out by
+          probing and being intercepted. Interception is guesswork by comparison: it depends on the
+          phone making an unencrypted probe we happen to answer correctly, on our DNS being the one
+          it asks, and on the phone counting this network as one worth opening a window for. A VPN
+          or private DNS on the phone defeats all three. This defeats none of them, because nothing
+          is being intercepted.
+
+          The URI points at an API endpoint, not the page: RFC 8908 says the phone fetches it and
+          expects JSON saying whether it is captive and where the person should be sent. The probe
+          answers stay as they are, for phones too old to ask.
+        */
+        byte[] uri = CAPTIVE_API.getBytes(java.nio.charset.Charset.forName("US-ASCII"));
+        r[i++] = 114; r[i++] = (byte) uri.length;
+        System.arraycopy(uri, 0, r, i, uri.length); i += uri.length;
+
         r[i++] = (byte) 255;
 
         byte[] out = new byte[Math.max(300, i)];

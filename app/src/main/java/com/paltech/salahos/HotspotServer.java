@@ -194,6 +194,19 @@ final class HotspotServer {
           and open their sheet when it is not, which is why the iPhone worked while the Pixel did
           not - but a redirect suits them as well, so everything else still gets the page.
         */
+        /*
+          The answer to option 114, in the form RFC 8908 specifies.
+
+          "captive" says the phone has not been let out yet; "user-portal-url" says where to send
+          the person. A phone that was handed the option at DHCP time comes straight here and opens
+          that page, with no probe and no interception anywhere in the story.
+        */
+        if ("/captive-api".equals(path)) {
+            send(out, 200, "application/captive+json",
+                 "{\"captive\":true,\"user-portal-url\":\"" + HOME + "\"}");
+            return;
+        }
+
         if ("/generate_204".equals(path) || "/gen_204".equals(path)) { redirect(out, HOME); return; }
 
         sendAsset(out, "wifi-setup.html");
@@ -214,8 +227,12 @@ final class HotspotServer {
 
     private void send(OutputStream out, int code, String type, String payload) throws IOException {
         byte[] data = payload.getBytes("UTF-8");
+        /* A phone parsing an RFC 8908 answer checks the media type; anything appended to it, a
+           charset included, can be enough for it to decide this is not one. Only the types we
+           invent here get the charset. */
+        String ct = type.startsWith("application/captive") ? type : type + "; charset=utf-8";
         String headers = "HTTP/1.1 " + code + (code == 200 ? " OK" : " Error") + "\r\n"
-                + "Content-Type: " + type + "; charset=utf-8\r\n"
+                + "Content-Type: " + ct + "\r\n"
                 + "Content-Length: " + data.length + "\r\n"
                 + "Cache-Control: no-store\r\n"
                 + "Connection: close\r\n\r\n";

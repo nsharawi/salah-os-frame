@@ -54,6 +54,19 @@ final class HotspotServer {
     /** When the phone last asked us anything - the only honest sign it is still there. */
     private volatile long lastSeen = 0;
 
+    /*
+      The code on the frame is what keeps a stranger out of setup now that the air is open.
+
+      Whoever holds it gets in, and nobody else does, so the only real attack is guessing. Six
+      digits is a million, and a million tries over Wi-Fi is hours of obvious traffic - but only
+      if each wrong one costs something. After ten the door stays shut until the hotspot is
+      raised again, which a person who can see the frame can do and a person outside cannot.
+    */
+    private final java.util.Set<String> unlocked =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<String>());
+    private volatile int wrongTries = 0;
+    private static final int MAX_TRIES = 10;
+
     /** idle, scanning, joining, connected or failed. Read by the phone page through /state. */
     private volatile String state = "idle";
     private volatile String stateNote = "";
@@ -188,6 +201,20 @@ final class HotspotServer {
         lastSeen = android.os.SystemClock.elapsedRealtime();
         Log.i(TAG, method + " " + path + (hostHdr.length() > 0 ? " host " + hostHdr : "")
                  + " from " + c.getInetAddress());
+        /* The code is typed once; after that this phone is simply let through. */
+        String who = c.getInetAddress() == null ? "" : c.getInetAddress().getHostAddress();
+        if ("/unlock".equals(path) && "POST".equals(method)) {
+            send(out, 200, "application/json", unlock(who, body));
+            return;
+        }
+
+        boolean needsCode = host.apCode().length() > 0;
+        boolean allowed = !needsCode || unlocked.contains(who);
+        if (!allowed && ("/networks".equals(path) || "/state".equals(path) || "/join".equals(path))) {
+            send(out, 403, "application/json", "{\"error\":\"locked\"}");
+            return;
+        }
+
         if ("/networks".equals(path)) { send(out, 200, "application/json", networks()); return; }
         if ("/state".equals(path))    { send(out, 200, "application/json", stateJson()); return; }
         if ("/join".equals(path) && "POST".equals(method)) { send(out, 200, "application/json", join(body)); return; }
@@ -267,7 +294,7 @@ final class HotspotServer {
            charset included, can be enough for it to decide this is not one. Only the types we
            invent here get the charset. */
         String ct = type.startsWith("application/captive") ? type : type + "; charset=utf-8";
-        String headers = "HTTP/1.1 " + code + (code == 200 ? " OK" : " Error") + "\r\n"
+        String headers = "HTTP/1.1 " + code + (code == 200 ? " OK" : code == 403 ? " Forbidden" : " Error") + "\r\n"
                 + "Content-Type: " + ct + "\r\n"
                 + "Content-Length: " + data.length + "\r\n"
                 + "Cache-Control: no-store\r\n"
@@ -456,6 +483,32 @@ final class HotspotServer {
             stateNote = "the frame could not be reached";
             Log.w(TAG, "join failed: " + t);
         }
+    }
+
+    /**
+     * Checks the code the phone was asked to copy off the frame.
+     *
+     * The answer never says which part was wrong, and a locked-out server says so plainly rather
+     * than going on refusing a correct code without explanation.
+     */
+    private String unlock(String who, String body) {
+        String want = host.apCode();
+        if (want.length() == 0) return "{\"ok\":true}";
+        if (wrongTries >= MAX_TRIES) {
+            Log.w(TAG, "the code has been guessed at " + wrongTries + " times; refusing");
+            return "{\"ok\":false,\"locked\":true}";
+        }
+        String got = form(body).get("code");
+        if (got != null) got = got.trim();
+        if (want.equals(got)) {
+            unlocked.add(who);
+            wrongTries = 0;
+            Log.i(TAG, "code accepted from " + who);
+            return "{\"ok\":true}";
+        }
+        wrongTries++;
+        Log.i(TAG, "wrong code from " + who + " (" + wrongTries + " of " + MAX_TRIES + ")");
+        return "{\"ok\":false,\"left\":" + (MAX_TRIES - wrongTries) + "}";
     }
 
     private String stateJson() {

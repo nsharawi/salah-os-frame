@@ -80,6 +80,11 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
 .qr svg rect{fill:none}
 .qr svg path{fill:var(--on)}
 .qcap{font-size:22px;line-height:28px;color:var(--dim);text-align:center}
+/* The code is read off this screen from wherever the buyer is standing and typed on a phone, so
+   it is set large, spaced, and in figures that do not argue with each other. */
+.code{font-size:45px;line-height:52px;font-weight:500;color:var(--on);text-align:center;
+  letter-spacing:.22em;margin-inline-start:.22em;font-variant-numeric:tabular-nums;direction:ltr}
+.codecap{font-size:22px;line-height:28px;color:var(--dim);text-align:center;margin-top:-10px}
 .name{margin:0;font-size:24px;line-height:32px;font-weight:400;color:var(--p);letter-spacing:0;unicode-bidi:plaintext}
 /* Material's indeterminate circular indicator: the ring turns while the arc inside it grows and
    shrinks. The circle is 125.6 units around, which is where the dash lengths come from. The arc
@@ -163,6 +168,8 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     <div class="name" id="ssid"></div>
     <div class="qr" id="q1"></div>
     <div class="qcap" id="qcap"></div>
+    <div class="code" id="code" hidden></div>
+    <div class="codecap" id="codecap" hidden></div>
   </div></div>
   <div class="wzf"><span class="s" id="live"></span></div>
 </section>
@@ -183,6 +190,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'Set up from your phone': 'أعدّ الإطار من هاتفك',
     'Looking for networks…': 'جارٍ البحث عن الشبكات…',
     'Scan to connect Wi-Fi': 'امسح الرمز للاتصال بالواي فاي',
+    'Then enter this code on your phone': 'ثم أدخل هذا الرمز في هاتفك',
     'Connecting to': 'جارٍ الاتصال بـ',
     'Connected': 'تم الاتصال',
     'Salah OS is starting.': 'جارٍ بدء تشغيل Salah OS.',
@@ -290,6 +298,12 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
         try { id('q1').innerHTML = window.SalahQR.svg(join); } catch (e) { }
         id('ssid').textContent = d.ssid;
         id('qcap').textContent = t('Scan to connect Wi-Fi');
+        var code = id('code'), ccap = id('codecap');
+        if (d.code) {
+          code.textContent = d.code;
+          ccap.textContent = t('Then enter this code on your phone');
+          code.hidden = false; ccap.hidden = false;
+        } else { code.hidden = true; ccap.hidden = true; }
       }
       var live = id('live');
       live.innerHTML = '';

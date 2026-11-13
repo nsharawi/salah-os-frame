@@ -55,8 +55,24 @@ public class HostControl {
     private volatile String apPass = "";
     private volatile String apUrl = "";
     private volatile String preScan = "";
-    /** True while the access point is running without encryption - testing only. */
+    /** True while the access point is running without encryption. */
     private volatile boolean apOpen = false;
+    /** Shown on the frame, typed on the phone: what keeps a stranger out of setup. */
+    private volatile String apCode = "";
+
+    /**
+     * Six digits, from the same source as the password it replaces.
+     *
+     * Digits rather than letters because this one is read off a screen across a room and typed on
+     * a phone by somebody who did not choose it. Six because four is worth guessing and eight is
+     * worth mistyping; the server stops answering long before a million can be tried over the air.
+     */
+    private String newCode() {
+        int n = new java.security.SecureRandom().nextInt(1000000);
+        return String.format(java.util.Locale.US, "%06d", n);
+    }
+
+    String apCode() { return apCode; }
     private volatile long preScanAt = 0;
     private final Object radio = new Object();   /* one thread at a time may touch the Wi-Fi radio */
 
@@ -574,6 +590,7 @@ public class HostControl {
             o.put("state", server != null ? server.state() : "idle");
             o.put("joining", server != null ? server.joining() : "");
             o.put("open", apOpen);
+            o.put("code", apCode);
         } catch (Throwable ignored) { }
         return o.toString();
     }
@@ -633,10 +650,14 @@ public class HostControl {
               from the air whether or not it is advertised, and on an open network everything is
               readable either way. start-softap has no flag for it in any case.
             */
-            boolean open = new java.io.File("/data/local/tmp/salah-open-ap").exists();
+            /* Open by default now, with the code on the frame standing in for the passphrase.
+               Touch /data/local/tmp/salah-wpa2-ap to go back to an encrypted one. */
+            boolean open = !new java.io.File("/data/local/tmp/salah-wpa2-ap").exists();
             apOpen = open;
-            if (open) Log.w(TAG, "OPEN access point - no encryption. For testing only: the "
-                               + "buyer's own Wi-Fi password crosses this link unprotected.");
+            apCode = open ? newCode() : "";
+            if (open) Log.w(TAG, "OPEN access point. The code on the frame keeps strangers out "
+                               + "of setup, but the air is unencrypted: a listener in range can "
+                               + "read the buyer's own Wi-Fi password off it.");
             String how = open ? "open" : ("wpa2 " + quote(pass));
             String out = outShell("cmd wifi stop-softap >/dev/null 2>&1; sleep 1; "
                     + "cmd wifi start-softap " + quote(ssid) + " " + how);

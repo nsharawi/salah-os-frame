@@ -167,15 +167,36 @@ final class DhcpServer {
            && p[238] == (byte) 0x53 && p[239] == (byte) 0x63)) return null;
 
         int type = 0;
+        String asked = "";
+        boolean wantsPortal = false;
         for (int i = 240; i + 1 < len; ) {
             int opt = p[i] & 255;
             if (opt == 255) break;
             if (opt == 0) { i++; continue; }
             int l = p[i + 1] & 255;
             if (opt == 53 && l == 1 && i + 2 < len) type = p[i + 2] & 255;
+            /*
+              Option 55 is the client's own list of what it wants to be told. Most clients ignore
+              anything they did not ask for, so whether 114 is in this list decides whether the
+              captive-portal URI can work at all - and that is not something to keep guessing at
+              from the outside.
+            */
+            if (opt == 55 && i + 2 + l <= len) {
+                StringBuilder sb = new StringBuilder();
+                for (int k = 0; k < l; k++) {
+                    int o = p[i + 2 + k] & 255;
+                    if (o == 114) wantsPortal = true;
+                    if (k > 0) sb.append(',');
+                    sb.append(o);
+                }
+                asked = sb.toString();
+            }
             i += 2 + l;
         }
         if (type != 1 && type != 3) return null;            /* DISCOVER or REQUEST only */
+
+        Log.i(TAG, "the phone asked for options [" + asked + "] - captive-portal URI (114) "
+                 + (wantsPortal ? "IS" : "is NOT") + " among them");
 
         StringBuilder mac = new StringBuilder();
         for (int i = 28; i < 34; i++) mac.append(String.format("%02x", p[i] & 255));

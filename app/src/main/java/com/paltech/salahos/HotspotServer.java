@@ -165,9 +165,9 @@ final class HotspotServer {
         String[] lines = text.split("\r?\n");
         String[] first = lines[0].split(" ");
         if (first.length < 2) return;
-        String method = first[0], path = first[1], query = "";
+        String method = first[0], path = first[1];
         int q = path.indexOf('?');
-        if (q >= 0) { query = path.substring(q + 1); path = path.substring(0, q); }
+        if (q >= 0) path = path.substring(0, q);
 
         String body = "";
         if ("POST".equals(method)) {
@@ -210,32 +210,6 @@ final class HotspotServer {
         String who = c.getInetAddress() == null ? "" : c.getInetAddress().getHostAddress();
         if ("/unlock".equals(path) && "POST".equals(method)) {
             send(out, 200, "application/json", unlock(who, body));
-            return;
-        }
-
-        /*
-          The link the frame puts on its own screen as a code to scan, with the figures in it.
-
-          A phone holding this link has seen the frame, which is the whole of what typing the
-          figures off the screen proves - so it is let through on the same evidence and the buyer
-          types nothing. It is also opened by the phone's ordinary browser rather than the sign-in
-          window, which is what lets the page carry on living after the hotspot goes away.
-        */
-        if ("/setup".equals(path)) {
-            String want = host.apCode();
-            String got = param(query, "c");
-            if (want.length() == 0 || want.equals(got)) {
-                if (want.length() > 0 && !unlocked.contains(who)) {
-                    unlocked.add(who);
-                    wrongTries = 0;
-                    Log.i(TAG, "the code arrived in the link from " + who);
-                }
-                sawPage = true;
-                sendAsset(out, "wifi-setup.html");
-                return;
-            }
-            Log.w(TAG, "a /setup link with the wrong figures from " + who);
-            redirect(out, HOME);
             return;
         }
 
@@ -526,17 +500,6 @@ final class HotspotServer {
      * The answer never says which part was wrong, and a locked-out server says so plainly rather
      * than going on refusing a correct code without explanation.
      */
-    /** One value out of a query string, undecoded beyond the little this needs. */
-    private static String param(String query, String name) {
-        if (query == null || query.length() == 0) return "";
-        String[] parts = query.split("&");
-        for (String p : parts) {
-            int eq = p.indexOf('=');
-            if (eq > 0 && p.substring(0, eq).equals(name)) return p.substring(eq + 1).trim();
-        }
-        return "";
-    }
-
     private String unlock(String who, String body) {
         String want = host.apCode();
         if (want.length() == 0) return "{\"ok\":true}";

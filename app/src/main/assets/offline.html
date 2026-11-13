@@ -62,8 +62,15 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
 
 /* the hotspot code, and the quieter bits */
 /* The code and nothing else. A card behind it only read as a pale box around a white box. */
-.qr{width:300px;height:300px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px}
+/* The code sits on the page, not in a box on the page: no card, no border, nothing behind it.
+   The writer draws it white-backed and black-inked; both are overridden here, because a
+   presentation attribute in the markup loses to a stylesheet. The quiet zone it builds in stays -
+   that one is not decoration, a scanner needs it. */
+.qr{width:300px;height:300px}
 .qr svg{width:100%;height:100%;display:block}
+.qr svg rect{fill:none}
+.qr svg path{fill:var(--on)}
+.qcap{font-size:1.25rem;color:var(--dim);text-align:center}
 .name{margin:20px 0 0;font-size:24px;line-height:1.2;font-weight:600;color:var(--p);letter-spacing:.5px;unicode-bidi:plaintext}
 /* Material's indeterminate circular indicator: the ring turns while the arc inside it grows and
    shrinks. The circle is 125.6 units around, which is where the dash lengths come from. The arc
@@ -144,7 +151,10 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     <h1 id="hh"></h1>
     <p class="name" id="ssid"></p>
   </div>
-  <div class="wzr"><div class="wzi" style="display:flex;justify-content:center"><div class="qr" id="q1"></div></div></div>
+  <div class="wzr"><div class="wzi" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px">
+    <div class="qr" id="q1"></div>
+    <div class="qcap" id="qcap"></div>
+  </div></div>
   <div class="wzf"><span class="s" id="live"></span></div>
 </section>
 
@@ -163,6 +173,7 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
     'Starting phone setup…': 'جارٍ تجهيز الإعداد من الهاتف…',
     'Set up from your phone': 'أعدّ الإطار من هاتفك',
     'Looking for networks…': 'جارٍ البحث عن الشبكات…',
+    'Scan to connect Wi-Fi': 'امسح الرمز للاتصال بالواي فاي',
     'Connecting to': 'جارٍ الاتصال بـ',
     'Connected': 'تم الاتصال',
     'Salah OS is starting.': 'جارٍ بدء تشغيل Salah OS.',
@@ -265,6 +276,7 @@ h1{margin:0 0 16px;font-size:44px;line-height:52px;font-weight:400;letter-spacin
            heading is a thing people already know how to use. */
         try { id('q1').innerHTML = window.SalahQR.svg('WIFI:T:WPA;S:' + d.ssid + ';P:' + d.pass + ';;'); } catch (e) { }
         id('ssid').textContent = d.ssid;
+        id('qcap').textContent = t('Scan to connect Wi-Fi');
       }
       var live = id('live');
       live.innerHTML = '';

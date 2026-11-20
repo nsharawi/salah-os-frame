@@ -6,6 +6,7 @@ import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -25,11 +26,14 @@ import android.widget.FrameLayout;
 public class MainActivity extends Activity {
     private static final String HOME_URL = "https://salah-os.web.app/";
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
-    /* Just long enough for the page to have painted; the half-second fade covers the rest.
-       Any longer is dead time the frame spends showing a logo it no longer needs to. */
-    private static final long MIN_SPLASH_MS = 400;
-    /** How long the frame takes to go from the mark on black to the page. */
-    private static final long FADE_MS = 600;
+    /* The least the mark is held once the page is ready to be seen. The frame waits for the
+       page's first paint rather than for the last of its resources, so this no longer has to
+       stand in for a page that is not there yet; anything longer is dead time. */
+    private static final long MIN_SPLASH_MS = 120;
+    /** How long the page takes to come up out of the black. */
+    private static final long FADE_MS = 500;
+    /** The mark goes first and quicker, so it is not still there under the page coming up. */
+    private static final long MARK_FADE_MS = 260;
     /** The page's own background (--bg in the frame's stylesheet), so the fade lands on it. */
     private static final int PAGE_BG = 0xFFF6F7F8;
     private static final long RETRY_MS = 15000;
@@ -62,6 +66,7 @@ public class MainActivity extends Activity {
         }
     };
     private boolean shown;      /* the page has been faded up; it is not done twice */
+    private Drawable mark;      /* the window's backing, the mark on black */
     private long startedAt;
     private boolean offline;
     /* True from a failed load of the site until the next attempt starts. WebView reports
@@ -90,6 +95,12 @@ public class MainActivity extends Activity {
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
+
+        /* The window's own backing, held so the mark on it can be faded out later. It is the same
+           mark on the same black that the starting window, the wallpaper and the boot logo show,
+           so the moment the app takes over nothing on screen changes. */
+        mark = getDrawable(R.drawable.window_logo);
+        if (mark != null) getWindow().setBackgroundDrawable(mark);
 
         web = new WebView(this);
         /* The page's own colour, not black: the page fades up over the lightening backing, and a
@@ -144,6 +155,14 @@ public class MainActivity extends Activity {
             return !(u.startsWith(HOME_URL) || u.startsWith("file:///android_asset/"));
         }
 
+        /* The first paint, which is when there is something worth showing. onPageFinished waits
+           for the last of the page's resources and can be a second or more later; by then the
+           frame has been holding the mark over a page that was ready all along. */
+        @Override
+        public void onPageCommitVisible(WebView view, String url) {
+            if (!loadFailed) showPage();
+        }
+
         @Override
         public void onPageFinished(WebView view, String url) {
             if (url != null && url.startsWith("https://") && !loadFailed) {
@@ -188,20 +207,29 @@ public class MainActivity extends Activity {
         long wait = Math.max(0, MIN_SPLASH_MS - (System.currentTimeMillis() - startedAt));
         ui.postDelayed(new Runnable() {
             @Override public void run() {
-                /* Black up to here, because every screen before this one was. The mark on the
-                   window's backing goes with it as the backing lightens. */
-                ValueAnimator a = ValueAnimator.ofObject(new ArgbEvaluator(), Color.BLACK, PAGE_BG);
-                a.setDuration(FADE_MS);
-                a.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-                    @Override public void onAnimationUpdate(ValueAnimator x) {
-                        int c = (Integer) x.getAnimatedValue();
-                        root.setBackgroundColor(c);
-                        getWindow().setBackgroundDrawable(new ColorDrawable(c));
+                /* The page comes up out of the black rather than the screen going pale first and
+                   the page arriving onto it: there is no moment of bare colour, only the mark
+                   giving way to the page. The mark fades quicker than the page rises, so it is
+                   gone before the page is transparent enough to show it through. */
+                if (mark != null) {
+                    ValueAnimator m = ValueAnimator.ofInt(255, 0);
+                    m.setDuration(MARK_FADE_MS);
+                    m.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                        @Override public void onAnimationUpdate(ValueAnimator x) {
+                            mark.setAlpha((Integer) x.getAnimatedValue());
+                        }
+                    });
+                    m.start();
+                }
+                web.animate().alpha(1f).setDuration(FADE_MS).withEndAction(new Runnable() {
+                    @Override public void run() {
+                        /* Nothing shows through an opaque page, and leaving black behind it would
+                           edge every later screen that is not full width. */
+                        root.setBackgroundColor(PAGE_BG);
+                        getWindow().setBackgroundDrawable(new ColorDrawable(PAGE_BG));
+                        mark = null;
                     }
-                });
-                a.start();
-                /* The page comes up through the second half of that, so the two read as one move. */
-                web.animate().alpha(1f).setStartDelay(FADE_MS / 2).setDuration(FADE_MS).start();
+                }).start();
             }
         }, wait);
     }

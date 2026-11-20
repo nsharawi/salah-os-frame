@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the frame shows in the moment an app window exists but has drawn nothing yet: the same mark
+  on the same black, rather than the plain black that moment is by default. Android paints this
+  behind the activity and under the starting window, so the hand-off from the boot wallpaper into
+  Salah OS carries the mark the whole way instead of blinking black in between.
+
+  The artwork is the logo on black with its own margins, so it is drawn to fit, centred, not
+  stretched: fitCenter in the activity does the same for the splash it covers.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/black" />
+    <item>
+        <bitmap
+            android:src="@drawable/splash_full"
+            android:gravity="center"
+            android:filter="true" />
+    </item>
+</layer-list>

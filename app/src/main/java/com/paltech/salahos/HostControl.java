@@ -1,6 +1,11 @@
 package com.paltech.salahos;
 
+import android.app.PendingIntent;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageInstaller;
 import android.content.SharedPreferences;
 import android.os.SystemClock;
 import android.media.AudioManager;
@@ -11,7 +16,9 @@ import android.webkit.JavascriptInterface;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -174,6 +181,19 @@ public class HostControl {
         last = "running";
         new Thread(new Runnable() {
             @Override public void run() {
+                /* As the frame's owner the app restarts it by asking Android. The command line is
+                   the older way, kept for a frame that has not been made the owner. */
+                if (FrameWifi.isOwner(act)) {
+                    if ("test".equals(name)) { last = "ok"; return; }
+                    if ("reboot".equals(name)) {
+                        try {
+                            DevicePolicyManager dpm = (DevicePolicyManager) act.getSystemService(Context.DEVICE_POLICY_SERVICE);
+                            last = "ok";
+                            dpm.reboot(new ComponentName(act, Admin.class));
+                        } catch (Throwable t) { last = "error: " + t; }
+                        return;
+                    }
+                }
                 if ("test".equals(name)) last = runShell("echo ok");
                 else if ("reboot".equals(name)) last = fireShell("reboot");
                 else if ("shutdown".equals(name)) last = fireShell("reboot -p");
@@ -246,6 +266,39 @@ public class HostControl {
             }
         }).start();
     }
+
+    /** Whether the frame runs its own Wi-Fi by asking Android, with nothing else needing to be set up. */
+    @JavascriptInterface
+    public boolean wifiOwned() { return FrameWifi.isOwner(act); }
+
+    /** The frame is on a network now: go and get the site, rather than waiting to notice. */
+    @JavascriptInterface
+    public void goHome() {
+        if (!local && !trusted) return;
+        act.tryHome();
+    }
+
+    /**
+     * Back to how the frame came out of the box, as far as Salah OS goes: the language, every
+     * saved network, and everything the site remembered about this frame. Then the first screen.
+     */
+    @JavascriptInterface
+    public void resetFrame() {
+        if (!local && !trusted) return;
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    if (FrameWifi.isOwner(act)) FrameWifi.forgetAll(act);
+                    else outShell("cmd wifi list-networks | awk 'NR>1{print $1}' | while read i; do cmd wifi forget-network $i; done");
+                } catch (Throwable t) { Log.w(TAG, "reset: networks: " + t); }
+                prefs.edit().clear().commit();
+                act.resetWeb();
+            }
+        }).start();
+    }
+
+    /** Forgets a setup that was begun and never finished; see MainActivity. */
+    void forgetUnfinishedSetup() { prefs.edit().remove("ui_lang").remove("pair_code").apply(); }
 
     @JavascriptInterface
     public boolean wifiBusy() { return wifiBusy; }
@@ -344,6 +397,26 @@ public class HostControl {
         StringBuilder hex = new StringBuilder();
         for (byte x : md.digest()) hex.append(String.format("%02x", x));
         if (!hex.toString().equalsIgnoreCase(sha)) { f.delete(); updMsg = "error: checksum"; return; }
+        /* The owner may install without anyone being asked, which is what an appliance updating
+           itself needs. Android starts the home app again by itself once it has been replaced. */
+        if (FrameWifi.isOwner(act)) {
+            PackageInstaller pi = act.getPackageManager().getPackageInstaller();
+            PackageInstaller.SessionParams sp = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+            sp.setAppPackageName(act.getPackageName());
+            int sid = pi.createSession(sp);
+            PackageInstaller.Session ses = pi.openSession(sid);
+            try (InputStream in = new FileInputStream(f); OutputStream out = ses.openWrite("salah-os", 0, f.length())) {
+                byte[] b = new byte[65536]; int n;
+                while ((n = in.read(b)) > 0) out.write(b, 0, n);
+                ses.fsync(out);
+            }
+            PendingIntent done = PendingIntent.getBroadcast(act, sid,
+                    new Intent("com.paltech.salahos.UPDATED").setPackage(act.getPackageName()),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            ses.commit(done.getIntentSender());
+            ses.close();
+            return;
+        }
         Dadb d = null;
         try {
             d = connect();

@@ -22,6 +22,8 @@ import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
+import android.webkit.CookieManager;
+import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
@@ -87,7 +89,12 @@ public class MainActivity extends Activity {
             /* While the hotspot is up the buyer is in the middle of setting Wi-Fi up on their
                phone, and reloading underneath them would throw that away. The phone's own answer
                brings the site back instead, through onHotspotJoined(). */
-            if (offline && web != null && !host.netBusy()) { loadFailed = false; web.loadUrl(homeUrl()); }
+            if (!offline || web == null) return;
+            /* With nothing carrying traffic there is no point asking for the site, and asking
+               would reload the page under someone typing a Wi-Fi password into it. Look again
+               later instead. */
+            if (host.netBusy() || !hasNetwork()) { ui.postDelayed(this, RETRY_MS); return; }
+            loadFailed = false; web.loadUrl(homeUrl());
         }
     };
 
@@ -141,7 +148,15 @@ public class MainActivity extends Activity {
            wizard is a file in this app, so when there is no network it goes up at once and the
            site is tried again in the background; the frame is on its first screen while it would
            otherwise still have been staring at black. */
-        if (hasNetwork()) web.loadUrl(homeUrl()); else goOffline();
+        if (hasNetwork()) web.loadUrl(homeUrl());
+        else {
+            /* A setup that was begun and never got the frame onto a network starts again from the
+               first screen, rather than picking up halfway through with a language somebody chose
+               before the frame was unplugged, or moved, or handed to someone else. A frame that
+               has been on a network is past that and is left alone. */
+            if (!host.netDone()) host.forgetUnfinishedSetup();
+            goOffline();
+        }
         host.selfTest();
         ui.postDelayed(updateTick, 90 * 1000);
         // Off the critical path: the wallpaper only matters on the next boot, not this one.
@@ -202,6 +217,32 @@ public class MainActivity extends Activity {
             ui.post(new Runnable() { @Override public void run() { recreate(); } });
             return true;
         }
+    }
+
+    /** Asked for by the frame's own Wi-Fi screen the moment it has joined a network. */
+    void tryHome() {
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                if (web == null) return;
+                ui.removeCallbacks(retry);
+                loadFailed = false;
+                web.loadUrl(homeUrl());
+            }
+        });
+    }
+
+    /** Everything the pages remembered, gone, and the frame back on its first screen. */
+    void resetWeb() {
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                try {
+                    WebStorage.getInstance().deleteAllData();
+                    CookieManager.getInstance().removeAllCookies(null);
+                    if (web != null) { web.clearCache(true); web.clearHistory(); }
+                } catch (Throwable ignored) { }
+                recreate();
+            }
+        });
     }
 
     /** Whether anything is carrying traffic right now; not whether the site can be reached. */

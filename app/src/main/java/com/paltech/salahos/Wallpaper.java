@@ -36,7 +36,7 @@ final class Wallpaper {
     private static final String DONE = "wallpaper_set_v2";   // v1 sized it wrongly; redo it once
 
     /** Logo height as a share of the screen, matching splash_full.png and the boot logo. */
-    private static final float LOGO_SHARE = 0.506f;
+    static final float LOGO_SHARE = 0.506f;
 
     private Wallpaper() {}
 
@@ -101,7 +101,7 @@ final class Wallpaper {
     }
 
     /** The smallest rectangle holding everything that is not the black background. */
-    private static Rect contentBox(Bitmap b) {
+    static Rect contentBox(Bitmap b) {
         final int w = b.getWidth(), h = b.getHeight(), step = Math.max(1, Math.min(w, h) / 400);
         int l = w, t = h, r = -1, bo = -1;
         int[] row = new int[w];

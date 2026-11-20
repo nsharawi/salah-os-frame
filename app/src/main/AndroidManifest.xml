@@ -35,6 +35,21 @@
             </intent-filter>
         </activity>
 
+        <!-- The logo as the system wallpaper, drawn by the app because this frame's System UI is
+             off and nothing else can draw one. Without it Android waits 30 s at the end of boot.
+             directBootAware: Android asks for the wallpaper before the user's storage unlocks. -->
+        <service
+            android:name=".BootWallpaper"
+            android:exported="true"
+            android:directBootAware="true"
+            android:label="Salah OS"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/boot_wallpaper" />
+        </service>
+
         <!-- Technician mode's Back / Home / Recents bar. Enabled by the setup script; shows only while unlocked. -->
         <service
             android:name=".NavAccess"

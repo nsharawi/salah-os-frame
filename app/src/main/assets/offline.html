@@ -42,7 +42,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
    above it. The left side stays vertically centred - top-aligning it left a void down the whole
    lower half - so where the greeting lands depends on its own height, and the offset is measured
    rather than written down. */
-#pick .wzr{align-items:flex-start}
+#pick .wzr{align-items:flex-start;padding-block-start:var(--pick-gap,24px)}
 .wzi{width:100%}
 
 .wzf{grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:16px;padding-block:16px 40px;padding-inline:48px}
@@ -128,6 +128,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
   h1{font-size:32px;line-height:40px}
   .p{margin-inline:auto}
   .wzr{padding-block:20px 0;padding-inline:24px;justify-content:center}
+  #pick .wzr{padding-block-start:20px}
   .wzf{justify-content:center;padding-block:16px 28px;padding-inline:24px}
   .qr{width:230px;height:230px}
 }
@@ -299,9 +300,13 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
   function alignPick() {
     var sec = id('pick'), h = sec && sec.querySelector('h1'), r = sec && sec.querySelector('.wzr');
     if (!sec || !h || !r || !sec.classList.contains('on')) return;
-    r.style.paddingBlockStart = '';
+    /* Stacked, the choices sit under the greeting and the stylesheet places them. */
+    if (window.matchMedia('(max-width:900px),(max-height:560px)').matches) return;
+    /* The offset is only ever replaced by a newer good one, never cleared first. The frame sends
+       resize events while it is starting up, and a reading taken in the middle of one can come
+       back as nothing; clearing on that left the choices at the top of the screen for a frame. */
     var gap = h.getBoundingClientRect().top - r.getBoundingClientRect().top;
-    if (gap > 0) r.style.paddingBlockStart = Math.round(gap) + 'px';
+    if (gap > 0) r.style.setProperty('--pick-gap', Math.round(gap) + 'px');
   }
   window.addEventListener('resize', alignPick);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(alignPick);

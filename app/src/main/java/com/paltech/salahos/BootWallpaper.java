@@ -6,9 +6,13 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.content.Context;
 import android.service.wallpaper.WallpaperService;
 import android.util.Log;
+import android.view.Display;
+import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.view.WindowManager;
 
 /**
  * The Salah OS logo on black, drawn as the system wallpaper by the app itself.
@@ -63,22 +67,52 @@ public class BootWallpaper extends WallpaperService {
                 art = BitmapFactory.decodeResource(getResources(), R.drawable.splash_full);
                 if (art == null) { Log.w(TAG, "splash_full could not be decoded"); return; }
 
-                /* Same rule as the boot logo and the splash: the mark is a fixed share of the
-                   screen's short side, centred. The short side, so a surface handed over before
-                   the display has turned to landscape cannot make the logo bigger. */
                 final int w = c.getWidth(), h = c.getHeight();
+
+                /* The wallpaper surface is in the panel's own orientation, and this panel is
+                   physically portrait while the frame is read in landscape. Drawn straight onto
+                   the surface the mark comes out on its side, so the canvas is turned by the same
+                   amount the display is, about its centre. The surface is square here, so turning
+                   it about the centre keeps the mark centred whatever the rotation is. */
+                final int deg = rotationDegrees();
+                if (deg != 0) c.rotate(deg, w / 2f, h / 2f);
+
+                /* Same rule as the boot logo and the splash: the mark is a fixed share of the
+                   short side, centred. The short side, so a surface handed over before the
+                   display has turned cannot make the logo bigger. */
                 Rect box = Wallpaper.contentBox(art);
                 float targetH = Math.min(w, h) * Wallpaper.LOGO_SHARE;
                 float scale = targetH / box.height();
                 int dw = Math.round(box.width() * scale), dh = Math.round(targetH);
                 Rect dst = new Rect((w - dw) / 2, (h - dh) / 2, (w - dw) / 2 + dw, (h - dh) / 2 + dh);
                 c.drawBitmap(art, box, dst, new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG));
+                Log.i(TAG, "drew the boot wallpaper: surface " + w + "x" + h + ", turned " + deg
+                        + " deg, logo " + dw + "x" + dh);
             } catch (Throwable t) {
                 /* Cosmetic: a frame that cannot draw this still boots and runs. */
                 Log.w(TAG, "could not draw the boot wallpaper: " + t);
             } finally {
                 if (c != null) { try { holder.unlockCanvasAndPost(c); } catch (Throwable ignored) { } }
                 if (art != null) art.recycle();
+            }
+        }
+
+        /** How far the display is turned from the panel's own orientation, in degrees. */
+        private int rotationDegrees() {
+            try {
+                WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                if (wm == null) return 0;
+                Display d = wm.getDefaultDisplay();
+                if (d == null) return 0;
+                switch (d.getRotation()) {
+                    case Surface.ROTATION_90:  return 90;
+                    case Surface.ROTATION_180: return 180;
+                    case Surface.ROTATION_270: return 270;
+                    default: return 0;
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "could not read the display rotation: " + t);
+                return 0;
             }
         }
     }

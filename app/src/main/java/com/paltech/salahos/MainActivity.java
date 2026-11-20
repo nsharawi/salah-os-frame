@@ -116,7 +116,8 @@ public class MainActivity extends Activity {
         host.selfTest();
         ui.postDelayed(updateTick, 90 * 1000);
         // Off the critical path: the wallpaper only matters on the next boot, not this one.
-        ui.postDelayed(new Runnable() { @Override public void run() { Wallpaper.applyOnce(MainActivity.this); } }, 12000);
+        /* The wallpaper is drawn by BootWallpaper now, so nothing is set here. Setting a still
+           one needed SET_WALLPAPER_HINTS, which this app does not hold, and it threw every boot. */
         // Keep technician mode's navigation bar switched on across restarts.
         ui.postDelayed(new Runnable() { @Override public void run() { NavAccess.ensure(MainActivity.this); } }, 8000);
     }

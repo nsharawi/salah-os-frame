@@ -13,6 +13,10 @@
   Language comes first, before anything else is read, and is the only screen in both languages.
 -->
 <style>
+/* Cairo, carried inside the app: these screens are the ones shown with no internet, so the
+   font cannot come from anywhere else. One file holds every weight. */
+@font-face{font-family:"Cairo";src:url("fonts/Cairo.ttf") format("truetype");font-weight:200 1000;font-style:normal;font-display:block}
+
 :root{
   --bg:#F6F7F8; --on:#17191C; --dim:#454C54; --row:#EEF0F2; --line:#C3C7CC;
   --p:#2E649E; --on-p:#FFFFFF;
@@ -21,7 +25,7 @@
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--on);
-  font:400 16px/24px system-ui,"Segoe UI",Roboto,sans-serif;-webkit-user-select:none;user-select:none}
+  font:400 16px/24px "Cairo",system-ui,"Segoe UI",Roboto,sans-serif;-webkit-user-select:none;user-select:none}
 
 /* The setup wizard's own frame: a quiet left panel carrying the logo and the question, the answer
    on the right, one pill button in the corner. The same shape the wizard that follows uses, so a

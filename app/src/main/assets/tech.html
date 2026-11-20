@@ -1,9 +1,13 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Technician mode</title>
 <style>
+/* Cairo, carried inside the app: these screens are the ones shown with no internet, so the
+   font cannot come from anywhere else. One file holds every weight. */
+@font-face{font-family:"Cairo";src:url("fonts/Cairo.ttf") format("truetype");font-weight:200 1000;font-style:normal;font-display:block}
+
 :root{--bg:#0E1411;--surface:#171D1A;--hi:#222A26;--ink:#E4EAE6;--mute:#9AA69F;--line:#2C3530;--pri:#8FD6B8;--onpri:#003826;--err:#FFB4AB}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Roboto,sans-serif;-webkit-user-select:none;user-select:none;overflow:hidden}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:"Cairo",system-ui,Roboto,sans-serif;-webkit-user-select:none;user-select:none;overflow:hidden}
 button{font:inherit;color:inherit;border:0;background:none;padding:0}
 #pin,#grid{position:absolute;inset:0;display:flex}
 [hidden]{display:none!important}

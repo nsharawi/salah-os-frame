@@ -2,6 +2,10 @@ package com.paltech.salahos;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ArgbEvaluator;
+import android.animation.ValueAnimator;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
@@ -26,6 +30,8 @@ public class MainActivity extends Activity {
     /* Just long enough for the page to have painted; the half-second fade covers the rest.
        Any longer is dead time the frame spends showing a logo it no longer needs to. */
     private static final long MIN_SPLASH_MS = 400;
+    /** The page's own background (--bg in the frame's stylesheet), so the splash lands on it. */
+    private static final int PAGE_BG = 0xFFF6F7F8;
     private static final long RETRY_MS = 15000;
 
     /** The site, told which language the frame was set to, so the wizard does not ask again. */
@@ -180,9 +186,23 @@ public class MainActivity extends Activity {
         long wait = Math.max(0, MIN_SPLASH_MS - (System.currentTimeMillis() - startedAt));
         ui.postDelayed(new Runnable() {
             @Override public void run() {
-                v.animate().alpha(0f).setDuration(500).withEndAction(new Runnable() {
-                    @Override public void run() { root.removeView(v); }
-                }).start();
+                /* Everything from the moment the frame is switched on is the mark on black, and
+                   what follows is a near-white page. Fading the mark out on black and then cutting
+                   to that page is the one hard edge left in the sequence, so the black goes with
+                   it: the backing lightens to the page's own colour while the mark fades, and what
+                   is uncovered is already that colour. */
+                ValueAnimator a = ValueAnimator.ofObject(new ArgbEvaluator(), Color.BLACK, PAGE_BG);
+                a.setDuration(500);
+                a.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                    @Override public void onAnimationUpdate(ValueAnimator x) {
+                        v.setBackgroundColor((Integer) x.getAnimatedValue());
+                        v.setImageAlpha(Math.round(255 * (1f - x.getAnimatedFraction())));
+                    }
+                });
+                a.addListener(new AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(Animator x) { root.removeView(v); }
+                });
+                a.start();
             }
         }, wait);
     }

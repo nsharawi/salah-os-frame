@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The mark Android draws on its own starting window, in the seconds between the boot wallpaper
+  going away and Salah OS having drawn anything. Handed the bare PNG, this build drew nothing
+  there and left the window plain black; wrapped as a drawable it is drawn like any other.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <bitmap
+            android:src="@drawable/splash_icon"
+            android:gravity="center"
+            android:filter="true" />
+    </item>
+</layer-list>

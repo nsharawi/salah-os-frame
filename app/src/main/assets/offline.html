@@ -298,7 +298,8 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'The language and Wi-Fi on this frame will be cleared.': 'ستُمسح اللغة وإعدادات الواي فاي من هذا الإطار.',
     'Cancel': 'إلغاء',
     'Start over': 'البدء من جديد',
-    'Back': 'رجوع'
+    'Back': 'رجوع',
+    'Choose another network': 'اختر شبكة أخرى'
   };
   var F = window.SalahFrame, lang = '', chosen = 'en', shown = '', shownCode = '';
   /* Up here because a frame that already knows its language goes straight to the list, before
@@ -314,8 +315,20 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
   /* A language chosen once is never asked for again, here or on the phone or in the wizard. */
   try { if (F && F.getLang) lang = F.getLang() || ''; } catch (e) { }
 
+  /* The first screen answers at once: tapping a language turns the screen into that language,
+     right to left for Arabic, before anything is confirmed. A choice that changes nothing until
+     a button is pressed reads as a choice that did not take. */
+  var FIRST = { en: ['Assalamu Alaikum', 'Prayer times, adhan and iqamah, at home. Let’s get you set up.', 'Get started'],
+                ar: ['السلام عليكم', 'مواقيت الصلاة والأذان والإقامة في بيتك. هيّا نبدأ الإعداد.', 'ابدأ'] };
   function mark(v) {
     chosen = v;
+    var f = FIRST[v] || FIRST.en, sec = id('pick');
+    document.documentElement.lang = v;
+    document.documentElement.dir = v === 'ar' ? 'rtl' : 'ltr';
+    sec.querySelector('h1').textContent = f[0];
+    sec.querySelector('.p').textContent = f[1];
+    id('go').textContent = f[2];
+    setTimeout(alignPick, 0);
     ['en', 'ar'].forEach(function (x) {
       var b = id(x), on = x === v;
       b.className = 'it' + (on ? ' on' : '');
@@ -482,8 +495,30 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     };
     id('pgo').onclick = function () { if (NET.open && id('pin').value.length) netJoin(NET.open, id('pin').value); };
     id('pin').onkeydown = function (e) { if (e.key === 'Enter') id('pgo').onclick(); };
-    netShow();
-    netScan();
+    /* A frame that is already on a network has nothing to choose: it is waiting for the internet
+       behind that network, or for the site. Showing it a list then reads as a frame that has
+       forgotten its Wi-Fi. So it is asked first, and the list is for a frame that is on nothing. */
+    stage('Just a moment', t('Getting everything ready.'), false);
+    try { F.wifi('status', '', '', ''); } catch (e) { }
+    wfWait(function (out) {
+      var m = /connected to "(.*?)"/i.exec(out);
+      if (m) netJoined(m[1]); else { netShow(); netScan(); }
+    });
+  }
+  /* On a network: say so, keep asking for the site, and after a while offer the way to another
+     network in case this one has no internet behind it. */
+  function netJoined(ssid) {
+    stage('Connected', t('Salah OS is starting.'), true);
+    var n = 0, iv = setInterval(function () {
+      try { if (F.goHome) F.goHome(); } catch (e) { }
+      if (++n === 4) {
+        var b = id('wifi');
+        b.textContent = t('Choose another network');
+        b.onclick = function () { clearInterval(iv); netShow(); netScan(); };
+        b.hidden = false;
+      }
+    }, 4000);
+    try { if (F.goHome) F.goHome(); } catch (e) { }
   }
   function netPick(n) {
     if (NET.busy) return;
@@ -503,8 +538,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     wfWait(function (out) {
       var m = /connected to "(.*?)"/i.exec(out);
       if (m && m[1] === n.ssid) {
-        stage('Connected', t('Salah OS is starting.'), true);
-        setTimeout(function () { try { if (F.goHome) F.goHome(); } catch (e) { } }, 1200);
+        netJoined(n.ssid);
         return;
       }
       if (n.sec === 'open' || n.sec === 'owe') {

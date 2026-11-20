@@ -14,6 +14,7 @@ import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -43,6 +44,8 @@ public class MainActivity extends Activity {
     /** The page's own background (--bg in the frame's stylesheet), so the fade lands on it. */
     private static final int PAGE_BG = 0xFFF6F7F8;
     private static final long RETRY_MS = 15000;
+    /** How long a frame that has been on Wi-Fi is given to rejoin it at start before saying it cannot. */
+    private static final long NET_WAIT_MS = 30000;
 
     /** The site, told which language the frame was set to, so the wizard does not ask again. */
     private String homeUrl() {
@@ -149,12 +152,19 @@ public class MainActivity extends Activity {
            site is tried again in the background; the frame is on its first screen while it would
            otherwise still have been staring at black. */
         if (hasNetwork()) web.loadUrl(homeUrl());
-        else {
+        else if (host.netDone()) {
+            /* A frame that has been on Wi-Fi starts faster than its Wi-Fi does: the app is up a
+               few seconds before the radio has rejoined. Going straight to the no-network screens
+               then put a list of networks in front of someone whose frame was about to connect by
+               itself, and looked exactly like a frame that had forgotten its Wi-Fi. So it waits,
+               with the mark still on the screen, and only gives up after long enough that the
+               network is really not coming. */
+            waitForNetwork(SystemClock.elapsedRealtime() + NET_WAIT_MS);
+        } else {
             /* A setup that was begun and never got the frame onto a network starts again from the
                first screen, rather than picking up halfway through with a language somebody chose
-               before the frame was unplugged, or moved, or handed to someone else. A frame that
-               has been on a network is past that and is left alone. */
-            if (!host.netDone()) host.forgetUnfinishedSetup();
+               before the frame was unplugged, or moved, or handed to someone else. */
+            host.forgetUnfinishedSetup();
             goOffline();
         }
         host.selfTest();
@@ -219,16 +229,56 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Asked for by the frame's own Wi-Fi screen the moment it has joined a network. */
+    private void waitForNetwork(final long until) {
+        ui.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (web == null || isFinishing()) return;
+                if (usable()) { loadFailed = false; web.loadUrl(homeUrl()); }
+                else if (SystemClock.elapsedRealtime() >= until) { if (hasNetwork()) { loadFailed = false; web.loadUrl(homeUrl()); } else goOffline(); }
+                else ui.postDelayed(this, 500);
+            }
+        }, 500);
+    }
+
+    /**
+     * Asked for by the frame's own Wi-Fi screen once it has joined a network. Joined is not the
+     * same as able to reach anything: the address and the check that there is internet behind it
+     * come a second or two later, and asking for the site before then fails and throws the frame
+     * back to the screen it just left. So this waits for the network to be usable, and the screen
+     * asks again every few seconds, so one call landing early costs nothing.
+     */
     void tryHome() {
         runOnUiThread(new Runnable() {
             @Override public void run() {
-                if (web == null) return;
+                if (web == null || homing) return;
+                homing = true;
                 ui.removeCallbacks(retry);
-                loadFailed = false;
-                web.loadUrl(homeUrl());
+                final long from = SystemClock.elapsedRealtime();
+                ui.post(new Runnable() {
+                    @Override public void run() {
+                        if (web == null || isFinishing()) { homing = false; return; }
+                        long waited = SystemClock.elapsedRealtime() - from;
+                        if (usable() || (hasNetwork() && waited > 6000)) { homing = false; loadFailed = false; web.loadUrl(homeUrl()); }
+                        else if (waited > 15000) homing = false;
+                        else ui.postDelayed(this, 400);
+                    }
+                });
             }
         });
+    }
+    private boolean homing;
+
+    /** On a network that Android has checked really leads to the internet. */
+    private boolean usable() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            Network n = cm == null ? null : cm.getActiveNetwork();
+            NetworkCapabilities c = n == null ? null : cm.getNetworkCapabilities(n);
+            return c != null && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /** Everything the pages remembered, gone, and the frame back on its first screen. */

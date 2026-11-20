@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Asks for no admin policies of its own: what the frame needs comes from being the device
+     owner, not from the older per-policy grants this file was designed for. -->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

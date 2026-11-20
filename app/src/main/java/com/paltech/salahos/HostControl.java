@@ -196,6 +196,31 @@ public class HostControl {
     @JavascriptInterface
     public void wifi(final String op, final String ssid, final String sec, final String pass) {
         if (!(trusted || local) || wifiBusy) return;
+        /* As the frame's owner the app asks Android itself. The command line below is the older
+           way and stays only for a frame that has not been made the owner yet. */
+        if (FrameWifi.isOwner(act)) {
+            if (!"status".equals(op) && !"scan".equals(op)
+                    && !("connect".equals(op) && ssid != null && ssid.length() > 0 && sec != null && sec.matches("open|owe|wep|wpa2|wpa3"))
+                    && !("forget".equals(op) && ssid != null && ssid.length() > 0)) return;
+            wifiBusy = true;
+            wifiOut = "";
+            new Thread(new Runnable() {
+                @Override public void run() {
+                    try {
+                        if ("status".equals(op)) wifiOut = FrameWifi.status(act);
+                        else if ("scan".equals(op)) wifiOut = FrameWifi.scan(act);
+                        else if ("connect".equals(op)) wifiOut = FrameWifi.connect(act, ssid, sec, pass);
+                        else wifiOut = FrameWifi.forget(act, ssid);
+                        if ("connect".equals(op) && wifiOut.toLowerCase().contains("connected to")) markNetDone();
+                    } catch (Throwable t) {
+                        wifiOut = "error: " + t;
+                    } finally {
+                        wifiBusy = false;
+                    }
+                }
+            }).start();
+            return;
+        }
         final String cmd;
         if ("status".equals(op)) cmd = "cmd wifi status";
         else if ("scan".equals(op)) cmd = "cmd wifi start-scan; sleep 3; cmd wifi list-scan-results";

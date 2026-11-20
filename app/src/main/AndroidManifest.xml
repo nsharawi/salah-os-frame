@@ -3,6 +3,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The frame's own Wi-Fi list and joining. Android ties seeing the networks in range to
+         location, since the one gives away the other; as the device owner the app grants itself
+         this, because there is nobody at a frame to ask. Nothing else uses location. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- so the frame can set its own wallpaper to the splash, which is what shows
          during the few seconds of Android's placeholder home screen at boot -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
@@ -49,6 +56,18 @@
             </intent-filter>
             <meta-data android:name="android.service.wallpaper" android:resource="@xml/boot_wallpaper" />
         </service>
+
+        <!-- What lets Salah OS be this frame's device owner: the standing that allows one app to
+             run an appliance. Given once when the frame is prepared. -->
+        <receiver
+            android:name=".Admin"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Technician mode's Back / Home / Recents bar. Enabled by the setup script; shows only while unlocked. -->
         <service

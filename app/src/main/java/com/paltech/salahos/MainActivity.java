@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
     /** Where the phone goes to carry on, once it is off the frame's hotspot and back on a network. */
     String pairLink() { return HOME_URL + "setup#" + host.pairCode(); }
     private static final String TECH_URL = "file:///android_asset/tech.html";
+    private static final String SELFTEST_URL = "file:///android_asset/selftest.html";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private FrameLayout root;
@@ -68,6 +69,8 @@ public class MainActivity extends Activity {
     private Tech tech;
     static volatile boolean resumed;
     private WebView techView;
+    private WebView selfTestView;
+    private SelfTest selfTest;
     private final Runnable updateTick = new Runnable() {
         @Override public void run() {
             if (host != null) host.autoCheck();
@@ -132,6 +135,7 @@ public class MainActivity extends Activity {
         host = new HostControl(this);
         host.applySaved();
         tech = new Tech(this);
+        selfTest = new SelfTest(this);
         web.addJavascriptInterface(host, "SalahFrame");
         web.setWebViewClient(new Client());
         root.addView(web, new FrameLayout.LayoutParams(
@@ -174,6 +178,7 @@ public class MainActivity extends Activity {
            one needed SET_WALLPAPER_HINTS, which this app does not hold, and it threw every boot. */
         // Keep technician mode's navigation bar switched on across restarts.
         ui.postDelayed(new Runnable() { @Override public void run() { NavAccess.ensure(MainActivity.this); } }, 8000);
+        selfTestFrom(getIntent());
     }
 
     private class Client extends WebViewClient {
@@ -496,11 +501,52 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); }
+    protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); selfTestFrom(intent); }
+
+    /** The flasher asks for a workshop check with an intent extra: selftest = touch, sound or stop. */
+    private void selfTestFrom(Intent intent) {
+        if (intent == null) return;
+        String what = intent.getStringExtra("selftest");
+        if (what == null) return;
+        intent.removeExtra("selftest");
+        if ("touch".equals(what) || "sound".equals(what)) showSelfTest(what, intent.getStringExtra("nonce"));
+        else hideSelfTest();
+    }
+
+    void showSelfTest(String mode, String nonce) {
+        hideSelfTest();
+        try {
+            selfTest.begin(nonce);
+            WebView v = new WebView(this);
+            v.setBackgroundColor(Color.BLACK);
+            v.setOverScrollMode(View.OVER_SCROLL_NEVER);
+            WebSettings ts = v.getSettings();
+            ts.setJavaScriptEnabled(true);
+            ts.setSupportZoom(false);
+            v.addJavascriptInterface(selfTest, "SelfTest");
+            v.setWebViewClient(new WebViewClient() {
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return true; }
+            });
+            root.addView(v, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            selfTestView = v;
+            v.loadUrl(SELFTEST_URL + "#" + mode);
+        } catch (Throwable ignored) { selfTestView = null; }
+    }
+
+    void hideSelfTest() {
+        if (selfTest != null) selfTest.stopSound();
+        if (selfTestView == null) return;
+        WebView v = selfTestView;
+        selfTestView = null;
+        try { root.removeView(v); v.destroy(); } catch (Throwable ignored) { }
+    }
     @Override protected void onPause() { resumed = false; web.onPause(); super.onPause(); }
 
     @Override
     protected void onDestroy() {
+        hideSelfTest();
         ui.removeCallbacksAndMessages(null);
         /* A hotspot is a setup tool, never something left running behind a closed app. */
         if (host != null) host.netEnd();

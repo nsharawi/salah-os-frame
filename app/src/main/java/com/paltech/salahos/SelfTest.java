@@ -16,7 +16,8 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Workshop hardware checks, started by the flasher over USB:
- *   am start -n com.paltech.salahos/.MainActivity --es selftest touch|sound|stop --es nonce ID
+ *   am start -n com.paltech.salahos/.MainActivity --es selftest screen|touch|sound|stop --es nonce ID
+ * The screen check fills the panel with black, white, red, green and blue, one touch each.
  * The touch check shows five targets on the frame, one at a time. The sound check plays a test sound.
  * Each result is written to files/selftest.json (and to the log as SalahSelfTest) with the nonce it was
  * started with, so the flasher knows the answer belongs to its own request.

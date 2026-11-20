@@ -503,13 +503,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); selfTestFrom(intent); }
 
-    /** The flasher asks for a workshop check with an intent extra: selftest = touch, sound or stop. */
+    /** The flasher asks for a workshop check with an intent extra: selftest = screen, touch, sound or stop. */
     private void selfTestFrom(Intent intent) {
         if (intent == null) return;
         String what = intent.getStringExtra("selftest");
         if (what == null) return;
         intent.removeExtra("selftest");
-        if ("touch".equals(what) || "sound".equals(what)) showSelfTest(what, intent.getStringExtra("nonce"));
+        if ("touch".equals(what) || "sound".equals(what) || "screen".equals(what)) showSelfTest(what, intent.getStringExtra("nonce"));
         else hideSelfTest();
     }
 

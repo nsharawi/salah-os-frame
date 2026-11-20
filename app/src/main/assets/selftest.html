@@ -23,7 +23,17 @@ var S=window.SelfTest,$=function(i){return document.getElementById(i)};
 var mode=(location.hash||'#touch').slice(1);
 function say(h,p,bad){$('h').textContent=h;$('p').textContent=p||'';$('p').className=bad?'e':''}
 function done(test,status,detail){try{S.result(test,status,detail||'')}catch(e){}setTimeout(function(){try{S.close()}catch(e){}},status==='pass'?900:2500)}
-if(mode==='sound'){
+if(mode==='screen'){
+  /* Screen check: one solid colour fills the whole panel, with nothing drawn over it, so a dead pixel, a
+     line or an uneven patch has nowhere to hide. A touch anywhere moves to the next colour, and after the
+     last it starts again. The technician answers in the flasher, which closes this page. */
+  var cols=['#000000','#FFFFFF','#FF0000','#00FF00','#0000FF'],names=['black','white','red','green','blue'],k=0,seen=0;
+  $('msg').hidden=true;
+  function paint(){document.documentElement.style.background=cols[k];document.body.style.background=cols[k]}
+  paint();
+  document.addEventListener('pointerdown',function(){k=(k+1)%cols.length;seen++;paint();
+    if(seen===cols.length-1)try{S.result('screen','shown','all five colours shown')}catch(e){}});
+}else if(mode==='sound'){
   say('Speaker check','Playing the test sound.');
   try{S.playSound()}catch(e){}
   setTimeout(function(){try{S.close()}catch(e){}},3600);

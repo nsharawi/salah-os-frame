@@ -2,11 +2,10 @@ package com.paltech.salahos;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -21,7 +20,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 
 /** Full-screen shell that shows https://salah-os.web.app on the prayer frame. */
 public class MainActivity extends Activity {
@@ -30,7 +28,9 @@ public class MainActivity extends Activity {
     /* Just long enough for the page to have painted; the half-second fade covers the rest.
        Any longer is dead time the frame spends showing a logo it no longer needs to. */
     private static final long MIN_SPLASH_MS = 400;
-    /** The page's own background (--bg in the frame's stylesheet), so the splash lands on it. */
+    /** How long the frame takes to go from the mark on black to the page. */
+    private static final long FADE_MS = 600;
+    /** The page's own background (--bg in the frame's stylesheet), so the fade lands on it. */
     private static final int PAGE_BG = 0xFFF6F7F8;
     private static final long RETRY_MS = 15000;
 
@@ -61,7 +61,7 @@ public class MainActivity extends Activity {
             ui.postDelayed(this, 30L * 60 * 1000);
         }
     };
-    private ImageView splash;
+    private boolean shown;      /* the page has been faded up; it is not done twice */
     private long startedAt;
     private boolean offline;
     /* True from a failed load of the site until the next attempt starts. WebView reports
@@ -92,7 +92,9 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(Color.BLACK);
 
         web = new WebView(this);
-        web.setBackgroundColor(Color.BLACK);
+        /* The page's own colour, not black: the page fades up over the lightening backing, and a
+           black sheet behind it while it does would show through as a dark edge. */
+        web.setBackgroundColor(PAGE_BG);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -110,12 +112,13 @@ public class MainActivity extends Activity {
         root.addView(web, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        splash = new ImageView(this);
-        splash.setBackgroundColor(Color.BLACK);
-        splash.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        splash.setImageResource(R.drawable.splash_full);
-        root.addView(splash, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        /* No splash of its own any more: the mark has been on screen since the frame was switched
+           on, and one more copy of it for a moment was not worth the step it made. What is left is
+           the window's own backing, which is that same mark on black, so nothing changes at the
+           moment the app takes over. Once the page is ready the backing lightens to the page's
+           colour and the page fades up through it: the frame is never cut from one screen to
+           another, it is only ever lit. */
+        web.setAlpha(0f);
 
         setContentView(root);
         web.loadUrl(homeUrl());
@@ -156,7 +159,7 @@ public class MainActivity extends Activity {
                    on is a different occasion and gets a code of its own. */
                 if (handoff) { handoff = false; host.pairUsed(); }
             }
-            hideSplash();
+            showPage();
         }
 
         @Override
@@ -179,30 +182,26 @@ public class MainActivity extends Activity {
         web.loadUrl(OFFLINE_URL);
     }
 
-    private void hideSplash() {
-        if (splash == null) return;
-        final ImageView v = splash;
-        splash = null;
+    private void showPage() {
+        if (shown) return;
+        shown = true;
         long wait = Math.max(0, MIN_SPLASH_MS - (System.currentTimeMillis() - startedAt));
         ui.postDelayed(new Runnable() {
             @Override public void run() {
-                /* Everything from the moment the frame is switched on is the mark on black, and
-                   what follows is a near-white page. Fading the mark out on black and then cutting
-                   to that page is the one hard edge left in the sequence, so the black goes with
-                   it: the backing lightens to the page's own colour while the mark fades, and what
-                   is uncovered is already that colour. */
+                /* Black up to here, because every screen before this one was. The mark on the
+                   window's backing goes with it as the backing lightens. */
                 ValueAnimator a = ValueAnimator.ofObject(new ArgbEvaluator(), Color.BLACK, PAGE_BG);
-                a.setDuration(500);
+                a.setDuration(FADE_MS);
                 a.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
                     @Override public void onAnimationUpdate(ValueAnimator x) {
-                        v.setBackgroundColor((Integer) x.getAnimatedValue());
-                        v.setImageAlpha(Math.round(255 * (1f - x.getAnimatedFraction())));
+                        int c = (Integer) x.getAnimatedValue();
+                        root.setBackgroundColor(c);
+                        getWindow().setBackgroundDrawable(new ColorDrawable(c));
                     }
                 });
-                a.addListener(new AnimatorListenerAdapter() {
-                    @Override public void onAnimationEnd(Animator x) { root.removeView(v); }
-                });
                 a.start();
+                /* The page comes up through the second half of that, so the two read as one move. */
+                web.animate().alpha(1f).setStartDelay(FADE_MS / 2).setDuration(FADE_MS).start();
             }
         }, wait);
     }

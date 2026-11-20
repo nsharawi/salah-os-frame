@@ -1,7 +1,11 @@
 package com.paltech.salahos;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.graphics.Color;
@@ -132,7 +136,12 @@ public class MainActivity extends Activity {
         web.setAlpha(0f);
 
         setContentView(root);
-        web.loadUrl(homeUrl());
+        /* A frame that is not on a network yet would otherwise spend the first seconds of its life
+           waiting for a name lookup to fail before it could show the one page it already has. The
+           wizard is a file in this app, so when there is no network it goes up at once and the
+           site is tried again in the background; the frame is on its first screen while it would
+           otherwise still have been staring at black. */
+        if (hasNetwork()) web.loadUrl(homeUrl()); else goOffline();
         host.selfTest();
         ui.postDelayed(updateTick, 90 * 1000);
         // Off the critical path: the wallpaper only matters on the next boot, not this one.
@@ -160,7 +169,9 @@ public class MainActivity extends Activity {
            frame has been holding the mark over a page that was ready all along. */
         @Override
         public void onPageCommitVisible(WebView view, String url) {
-            if (!loadFailed) showPage();
+            /* A page out of this app is real whatever the site did; loadFailed only tells us
+               the site's own address came back as a failure. */
+            if (!loadFailed || (url != null && url.startsWith("file:///android_asset/"))) showPage();
         }
 
         @Override
@@ -189,6 +200,20 @@ public class MainActivity extends Activity {
         @Override
         public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
             ui.post(new Runnable() { @Override public void run() { recreate(); } });
+            return true;
+        }
+    }
+
+    /** Whether anything is carrying traffic right now; not whether the site can be reached. */
+    private boolean hasNetwork() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) return true;              /* cannot tell: behave as before */
+            Network n = cm.getActiveNetwork();
+            if (n == null) return false;
+            NetworkCapabilities c = cm.getNetworkCapabilities(n);
+            return c != null && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        } catch (Throwable t) {
             return true;
         }
     }

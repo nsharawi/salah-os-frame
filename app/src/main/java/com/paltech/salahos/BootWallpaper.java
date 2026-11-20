@@ -11,7 +11,6 @@ import android.graphics.Point;
 import android.service.wallpaper.WallpaperService;
 import android.util.Log;
 import android.view.Display;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.WindowManager;
 
@@ -84,6 +83,13 @@ public class BootWallpaper extends WallpaperService {
                 final int deg = turnNeeded(w, h);
                 if (deg != 0) c.rotate(deg, w / 2f, h / 2f);
 
+                /* Same rule as the boot logo and the splash: the mark is a fixed share of the
+                   short side, centred. */
+                Rect box = Wallpaper.contentBox(art);
+                float targetH = Math.min(w, h) * Wallpaper.LOGO_SHARE;
+                float scale = targetH / box.height();
+                int dw = Math.round(box.width() * scale), dh = Math.round(targetH);
+                Rect dst = new Rect((w - dw) / 2, (h - dh) / 2, (w - dw) / 2 + dw, (h - dh) / 2 + dh);
                 c.drawBitmap(art, box, dst, new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG));
                 Log.i(TAG, "drew the boot wallpaper: surface " + w + "x" + h + ", display "
                         + displaySize() + ", turned " + deg + " deg, logo " + dw + "x" + dh);

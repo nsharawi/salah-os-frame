@@ -141,7 +141,7 @@ final class FrameWifi {
                 c.preSharedKey = "\"" + pass + "\"";
             } else if ("wpa3".equals(sec)) {
                 if (Build.VERSION.SDK_INT >= 31) c.setSecurityParams(WifiConfiguration.SECURITY_TYPE_SAE);
-                else { c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.SAE); c.requirePmf = true; }
+                else { c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.SAE); }
                 c.preSharedKey = "\"" + pass + "\"";
             } else if ("wep".equals(sec)) {
                 c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
@@ -150,7 +150,7 @@ final class FrameWifi {
                 if (keyed) { c.wepKeys[0] = pass.matches("[0-9A-Fa-f]{10}|[0-9A-Fa-f]{26}") ? pass : "\"" + pass + "\""; c.wepTxKeyIndex = 0; }
             } else if ("owe".equals(sec)) {
                 if (Build.VERSION.SDK_INT >= 31) c.setSecurityParams(WifiConfiguration.SECURITY_TYPE_OWE);
-                else { c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.OWE); c.requirePmf = true; }
+                else { c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.OWE); }
             } else {
                 c.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
             }

@@ -84,6 +84,9 @@ public class Tech {
     private String pinRecord() {
         try {
             File f = new File(act.getFilesDir(), "tech.pin");
+            // A frame built from the production image carries its PIN record in the image, so the PIN
+            // survives a factory reset instead of falling back to "any six digits".
+            if (!f.exists()) f = new File("/product/etc/salahos/tech.pin");
             if (!f.exists()) return "";
             return new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).trim();
         } catch (Throwable t) { return ""; }
@@ -193,8 +196,34 @@ public class Tech {
             o.put("control", act.host().controlOk());
             o.put("overlay", NavAccess.connected());
             o.put("idleMinutes", IDLE_MS / 60000);
+            o.put("usbDebug", usbDebugOn());
+            android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) act.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            o.put("owner", dpm != null && dpm.isDeviceOwnerApp(act.getPackageName()));
         } catch (Throwable ignored) { }
         return o.toString();
+    }
+
+    /** Whether USB debugging is on. */
+    private boolean usbDebugOn() {
+        try { return Settings.Global.getInt(act.getContentResolver(), Settings.Global.ADB_ENABLED, 0) == 1; } catch (Throwable t) { return false; }
+    }
+
+    /**
+     * Service mode: turns USB debugging on or off, so a returned frame can be reached by the flasher
+     * without opening the case. Only an unlocked technician can ask, and only a frame that Salah OS owns
+     * can do it (Android lets a device owner change this one setting). Returns "on", "off" or "no:<why>".
+     */
+    @JavascriptInterface
+    public String setUsbDebug(boolean on) {
+        if (!isUnlocked()) return "no:locked";
+        touch(act);
+        try {
+            android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) act.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            if (dpm == null || !dpm.isDeviceOwnerApp(act.getPackageName())) return "no:not the device owner";
+            dpm.setGlobalSetting(new ComponentName(act, Admin.class), Settings.Global.ADB_ENABLED, on ? "1" : "0");
+            android.util.Log.i("SalahTech", "usb debugging set " + (on ? "on" : "off") + " from technician mode");
+            return usbDebugOn() ? "on" : "off";
+        } catch (Throwable t) { return "no:" + t.getClass().getSimpleName(); }
     }
 
     @JavascriptInterface

@@ -35,7 +35,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <intent-filter>
+            <!-- Built into the image, Salah OS outranks Frameo as the home screen, so a first boot after a
+                 factory reset never asks "Select a Home app". Android ignores the priority for an app that
+                 is not part of the system image. -->
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />

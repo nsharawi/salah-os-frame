@@ -29,9 +29,16 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
-/** Full-screen shell that shows https://salah-os.web.app on the prayer frame. */
+/** Full-screen shell that shows https://app.salahos.com on the prayer frame. */
 public class MainActivity extends Activity {
-    private static final String HOME_URL = "https://salah-os.web.app/";
+    private static final String HOME_URL = "https://app.salahos.com/";
+    /* The address frames used before 1.0.91. The browser keeps each address's saved settings apart,
+       so a frame that has not moved yet opens move.html on the old address once: it hands the
+       settings over to the new address, and from then on the frame opens the new one directly. */
+    private static final String OLD_URL = "https://salah-os.web.app/";
+    private static final String PREFS = "frame", MOVED = "moved_to_app_salahos_com";
+    private boolean moved() { return getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(MOVED, false); }
+    private boolean ours(String u) { return u != null && (u.startsWith(HOME_URL) || u.startsWith(OLD_URL)); }
     private static final String OFFLINE_URL = "file:///android_asset/offline.html";
     /* The least the mark is held once the page is ready to be seen. The frame waits for the
        page's first paint rather than for the last of its resources, so this no longer has to
@@ -49,12 +56,13 @@ public class MainActivity extends Activity {
 
     /** The site, told which language the frame was set to, so the wizard does not ask again. */
     private String homeUrl() {
-        if (host == null) return HOME_URL;
+        String base = moved() ? HOME_URL : OLD_URL + "move.html";
+        if (host == null) return base;
         String q = "";
         if (host.lang().length() > 0) q = "?lang=" + host.lang();
         if (host.netDone()) q = q.length() > 0 ? q + "&net=1" : "?net=1";
         if (handoff) q = q + (q.length() > 0 ? "&" : "?") + "pair=" + host.pairCode();
-        return HOME_URL + q;
+        return base + q;
     }
 
     /** Where the phone goes to carry on, once it is off the frame's hotspot and back on a network. */
@@ -184,14 +192,14 @@ public class MainActivity extends Activity {
     private class Client extends WebViewClient {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
-            host.trusted = url != null && url.startsWith(HOME_URL);
+            host.trusted = ours(url);
             host.local = url != null && url.startsWith("file:///android_asset/");
         }
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             String u = request.getUrl().toString();
-            return !(u.startsWith(HOME_URL) || u.startsWith("file:///android_asset/"));
+            return !(ours(u) || u.startsWith("file:///android_asset/"));
         }
 
         /* The first paint, which is when there is something worth showing. onPageFinished waits
@@ -208,6 +216,8 @@ public class MainActivity extends Activity {
         public void onPageFinished(WebView view, String url) {
             if (url != null && url.startsWith("https://") && !loadFailed) {
                 offline = false;
+                /* the new address loaded with the settings handed over: open it directly from now on */
+                if (url.startsWith(HOME_URL) && !moved()) getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(MOVED, true).apply();
                 /* The frame is on the network. The phone is still watching the setup page over
                    the hotspot, so it stays up a little longer to show that it worked. */
                 if (host.hotspotUp() && joinedAt == 0) {

@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
     }
 
     /** Where the phone goes to carry on, once it is off the frame's hotspot and back on a network. */
-    String pairLink() { return HOME_URL + "setup#" + host.pairCode(); }
+    String pairLink() { return "https://salahos.com/p#" + host.pairCode(); }   /* short; forwards to app.salahos.com/setup, the code stays on the phone */
     private static final String TECH_URL = "file:///android_asset/tech.html";
     private static final String SELFTEST_URL = "file:///android_asset/selftest.html";
 

@@ -310,6 +310,9 @@ public class MainActivity extends Activity {
         });
     }
 
+    /** For the frame reset, which waits for the network it forgot to be gone. */
+    boolean online() { return hasNetwork(); }
+
     /** Whether anything is carrying traffic right now; not whether the site can be reached. */
     private boolean hasNetwork() {
         try {

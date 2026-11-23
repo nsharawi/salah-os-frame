@@ -292,6 +292,10 @@ public class HostControl {
                     else outShell("cmd wifi list-networks | awk 'NR>1{print $1}' | while read i; do cmd wifi forget-network $i; done");
                 } catch (Throwable t) { Log.w(TAG, "reset: networks: " + t); }
                 prefs.edit().clear().commit();
+                /* Android takes a moment to notice the forgotten network is gone. Restarting before it has
+                   made the frame try the site over a network that was going away, and end on a browser error
+                   instead of its first screen. Wait (up to 10 s) until the network is really down. */
+                for (int i = 0; i < 20 && act.online(); i++) { try { Thread.sleep(500); } catch (InterruptedException e) { break; } }
                 act.resetWeb();
             }
         }).start();

@@ -581,11 +581,11 @@ public class HostControl {
      */
     String pairCode() {
         String c = prefs.getString("pair_code", "");
-        if (c.length() == 24) return c;
+        if (c.length() == 8) return c;      /* eight characters a person can type, as the site shows them */
         String a = "abcdefghjkmnpqrstuvwxyz23456789";
-        byte[] b = new byte[24];
+        byte[] b = new byte[8];
         new java.security.SecureRandom().nextBytes(b);
-        StringBuilder sb = new StringBuilder(24);
+        StringBuilder sb = new StringBuilder(8);
         for (int i = 0; i < b.length; i++) sb.append(a.charAt((b[i] & 0xFF) % a.length()));
         c = sb.toString();
         prefs.edit().putString("pair_code", c).apply();

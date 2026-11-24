@@ -482,6 +482,35 @@ public class HostControl {
     @JavascriptInterface
     public String versionName() { return localName(); }
 
+    /** A small JPEG of what the display shows right now, base64, for the Frames list in the admin console.
+     *  It draws the app's own view, so it needs no screen-capture permission and never sees other apps.
+     *  Empty when it cannot be made. Called from the page's check-in, about once an hour. */
+    @JavascriptInterface
+    public String snapshot() {
+        final String[] out = { "" };
+        final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        act.runOnUiThread(() -> {
+            try {
+                android.view.View v = act.mainWeb();
+                int w = v == null ? 0 : v.getWidth(), h = v == null ? 0 : v.getHeight();
+                if (w > 0 && h > 0) {
+                    int tw = 384, th = Math.round(384f * h / w);
+                    android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(tw, th, android.graphics.Bitmap.Config.ARGB_8888);
+                    android.graphics.Canvas c = new android.graphics.Canvas(b);
+                    c.scale(tw / (float) w, th / (float) h);
+                    v.draw(c);
+                    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                    b.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, bo);
+                    b.recycle();
+                    out[0] = android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP);
+                }
+            } catch (Throwable t) { Log.w("SalahOS", "snapshot failed", t); }
+            done.countDown();
+        });
+        try { done.await(3, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { }
+        return out[0];
+    }
+
     /** The display tells the app which way it reads, so the hidden technician corner stays opposite the Settings gear. */
     @JavascriptInterface
     public void setRtl(boolean rtl) {

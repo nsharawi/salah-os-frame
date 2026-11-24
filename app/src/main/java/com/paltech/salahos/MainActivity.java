@@ -73,6 +73,8 @@ public class MainActivity extends Activity {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private FrameLayout root;
     private WebView web;
+    /* the display's view, for HostControl.snapshot() */
+    WebView mainWeb() { return web; }
     private HostControl host;
     private Tech tech;
     static volatile boolean resumed;

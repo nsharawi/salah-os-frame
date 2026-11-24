@@ -472,6 +472,11 @@ public class HostControl {
         } catch (Throwable t) { return ""; }
     }
 
+    /** The frame's own name, SalahOS- and six characters from its hardware serial (the same name as its
+     *  hotspot and the carton). Every frame has one, even one that never went through the Flasher. */
+    @JavascriptInterface
+    public String frameId() { return frameName(); }
+
     /** The frame's Salah OS serial (SOS-....), written at setup. Empty when the frame has none yet. */
     @JavascriptInterface
     public String serial() {

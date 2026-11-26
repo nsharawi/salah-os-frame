@@ -292,6 +292,10 @@ public class HostControl {
                     else outShell("cmd wifi list-networks | awk 'NR>1{print $1}' | while read i; do cmd wifi forget-network $i; done");
                 } catch (Throwable t) { Log.w(TAG, "reset: networks: " + t); }
                 prefs.edit().clear().commit();
+                /* Android takes a moment to notice the forgotten network is gone. Restarting before it has
+                   made the frame try the site over a network that was going away, and end on a browser error
+                   instead of its first screen. Wait (up to 10 s) until the network is really down. */
+                for (int i = 0; i < 20 && act.online(); i++) { try { Thread.sleep(500); } catch (InterruptedException e) { break; } }
                 act.resetWeb();
             }
         }).start();
@@ -468,6 +472,11 @@ public class HostControl {
         } catch (Throwable t) { return ""; }
     }
 
+    /** The frame's own name, SalahOS- and six characters from its hardware serial (the same name as its
+     *  hotspot and the carton). Every frame has one, even one that never went through the Flasher. */
+    @JavascriptInterface
+    public String frameId() { return frameName(); }
+
     /** The frame's Salah OS serial (SOS-....), written at setup. Empty when the frame has none yet. */
     @JavascriptInterface
     public String serial() {
@@ -477,6 +486,35 @@ public class HostControl {
 
     @JavascriptInterface
     public String versionName() { return localName(); }
+
+    /** A small JPEG of what the display shows right now, base64, for the Frames list in the admin console.
+     *  It draws the app's own view, so it needs no screen-capture permission and never sees other apps.
+     *  Empty when it cannot be made. Called from the page's check-in, about once an hour. */
+    @JavascriptInterface
+    public String snapshot() {
+        final String[] out = { "" };
+        final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        act.runOnUiThread(() -> {
+            try {
+                android.view.View v = act.mainWeb();
+                int w = v == null ? 0 : v.getWidth(), h = v == null ? 0 : v.getHeight();
+                if (w > 0 && h > 0) {
+                    int tw = 384, th = Math.round(384f * h / w);
+                    android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(tw, th, android.graphics.Bitmap.Config.ARGB_8888);
+                    android.graphics.Canvas c = new android.graphics.Canvas(b);
+                    c.scale(tw / (float) w, th / (float) h);
+                    v.draw(c);
+                    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                    b.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, bo);
+                    b.recycle();
+                    out[0] = android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP);
+                }
+            } catch (Throwable t) { Log.w("SalahOS", "snapshot failed", t); }
+            done.countDown();
+        });
+        try { done.await(3, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { }
+        return out[0];
+    }
 
     /** The display tells the app which way it reads, so the hidden technician corner stays opposite the Settings gear. */
     @JavascriptInterface
@@ -577,11 +615,11 @@ public class HostControl {
      */
     String pairCode() {
         String c = prefs.getString("pair_code", "");
-        if (c.length() == 24) return c;
+        if (c.length() == 8) return c;      /* eight characters a person can type, as the site shows them */
         String a = "abcdefghjkmnpqrstuvwxyz23456789";
-        byte[] b = new byte[24];
+        byte[] b = new byte[8];
         new java.security.SecureRandom().nextBytes(b);
-        StringBuilder sb = new StringBuilder(24);
+        StringBuilder sb = new StringBuilder(8);
         for (int i = 0; i < b.length; i++) sb.append(a.charAt((b[i] & 0xFF) % a.length()));
         c = sb.toString();
         prefs.edit().putString("pair_code", c).apply();

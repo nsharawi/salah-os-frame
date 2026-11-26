@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Frame check</title>
+<style>
+/* Same face and colours as the technician page: this is a workshop screen, shown with no internet. */
+@font-face{font-family:"Cairo";src:url("fonts/Cairo.ttf") format("truetype");font-weight:200 1000;font-style:normal;font-display:block}
+:root{--bg:#0E1411;--ink:#E4EAE6;--mute:#9AA69F;--pri:#8FD6B8;--onpri:#003826;--err:#FFB4AB}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:"Cairo",system-ui,Roboto,sans-serif;-webkit-user-select:none;user-select:none;overflow:hidden;touch-action:none}
+#msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;padding:24px}
+#msg h1{font-size:28px;font-weight:500;margin:0 0 8px}
+#msg p{margin:0;color:var(--mute);font-size:17px;line-height:1.45}
+#msg p.e{color:var(--err)}
+/* The target: the PIN pad's filled dot, at a size a finger can hit. */
+#t{position:absolute;width:112px;height:112px;margin:-56px 0 0 -56px;border-radius:50%;border:2px solid var(--pri);display:flex;align-items:center;justify-content:center;transition:transform .12s,background .12s}
+#t i{width:16px;height:16px;border-radius:50%;background:var(--pri)}
+#t.hit{background:var(--pri);transform:scale(1.1)}
+[hidden]{display:none!important}
+</style></head><body>
+<div id="msg"><h1 id="h"></h1><p id="p"></p></div>
+<div id="t" hidden><i></i></div>
+<script>
+var S=window.SelfTest,$=function(i){return document.getElementById(i)};
+var mode=(location.hash||'#touch').slice(1);
+function say(h,p,bad){$('h').textContent=h;$('p').textContent=p||'';$('p').className=bad?'e':''}
+function done(test,status,detail){try{S.result(test,status,detail||'')}catch(e){}setTimeout(function(){try{S.close()}catch(e){}},status==='pass'?900:2500)}
+if(mode==='screen'){
+  /* Screen check: one solid colour fills the whole panel, with nothing drawn over it, so a dead pixel, a
+     line or an uneven patch has nowhere to hide. A touch anywhere moves to the next colour, and after the
+     last it starts again. The technician answers in the flasher, which closes this page. */
+  var cols=['#000000','#FFFFFF','#FF0000','#00FF00','#0000FF'],names=['black','white','red','green','blue'],k=0,seen=0;
+  $('msg').hidden=true;
+  function paint(){document.documentElement.style.background=cols[k];document.body.style.background=cols[k]}
+  paint();
+  document.addEventListener('pointerdown',function(){k=(k+1)%cols.length;seen++;paint();
+    if(seen===cols.length-1)try{S.result('screen','shown','all five colours shown')}catch(e){}});
+}else if(mode==='sound'){
+  say('Speaker check','Playing the test sound.');
+  try{S.playSound()}catch(e){}
+  setTimeout(function(){try{S.close()}catch(e){}},3600);
+}else{
+  /* Five targets, one at a time: the four corners and the centre. Each must be touched on the target,
+     so a dead strip or an offset panel is caught. 15 seconds for each. */
+  var W=innerWidth,H=innerHeight,M=84;
+  var pts=[[M,M,'top left'],[W-M,M,'top right'],[W/2,H/2,'centre'],[M,H-M,'bottom left'],[W-M,H-M,'bottom right']];
+  var n=0,timer=0,log=[],over=false;
+  function show(){var p=pts[n],t=$('t');t.className='';t.style.left=p[0]+'px';t.style.top=p[1]+'px';t.hidden=false;
+    say('Touch check','Touch the target. '+(n+1)+' of '+pts.length);
+    clearTimeout(timer);timer=setTimeout(function(){fail('no touch on the '+p[2]+' target')},15000)}
+  function fail(why){if(over)return;over=true;clearTimeout(timer);$('t').hidden=true;say('Touch check failed',why+'.',true);done('touch','fail',why+'; '+log.join(' '))}
+  document.addEventListener('pointerdown',function(e){if(over)return;var p=pts[n],d=Math.round(Math.hypot(e.clientX-p[0],e.clientY-p[1]));
+    if(d>90){log.push(p[2]+':miss@'+Math.round(e.clientX)+','+Math.round(e.clientY));return}
+    log.push(p[2]+':'+d+'px');$('t').className='hit';clearTimeout(timer);
+    setTimeout(function(){n++;if(n<pts.length)show();else{over=true;$('t').hidden=true;say('Touch check passed','');done('touch','pass',log.join(' '))}},260)});
+  show();
+}
+</script></body></html>

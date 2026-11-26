@@ -66,11 +66,12 @@ function locked(secs){keys(true);clearInterval(lockT);var end=Date.now()+secs*10
  function tick(){var s=Math.ceil((end-Date.now())/1000);if(s<=0){clearInterval(lockT);keys(false);msg('Enter the 6-digit PIN.');return}
   msg('Too many wrong tries. Try again in '+Math.floor(s/60)+':'+('0'+s%60).slice(-2)+'.',true)}
  tick();lockT=setInterval(tick,1000)}
-function submit(){busy=true;msg('Checking…');setTimeout(function(){var r=String(T.tryPin(pin));busy=false;pin='';
+function submit(){busy=true;msg('Checking…');requestAnimationFrame(function(){requestAnimationFrame(function(){setTimeout(check,180)})})}
+function check(){var r=String(T.tryPin(pin));busy=false;pin='';
  if(r==='ok'){grid();return}
  dots();var d=$('dots');d.classList.remove('shake');void d.offsetWidth;d.classList.add('shake');
  if(r.indexOf('locked:')===0)locked(Number(r.slice(7)));
- else{var n=Number(r.slice(4));msg('Wrong PIN. '+n+(n===1?' try':' tries')+' left.',true)}},60)}
+ else{var n=Number(r.slice(4));msg('Wrong PIN. '+n+(n===1?' try':' tries')+' left.',true)}}
 function press(k){if(busy)return;if(k==='x'){T.close();return}if(k==='<'){pin=pin.slice(0,-1);dots();return}
  if(pin.length>=LEN)return;pin+=k;dots();if(pin.length===LEN)submit()}
 function pad(){var h='',K=['1','2','3','4','5','6','7','8','9','x','0','<'];

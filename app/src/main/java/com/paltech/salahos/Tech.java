@@ -114,10 +114,24 @@ public class Tech {
         any of the next 20 counters; each works once. The secret comes from the frame's page (HostControl.otpSync). */
     private boolean codeOk(String pin) {
         if (pin == null || !pin.matches("[0-9]{6}")) return false;
+        /* the unit's own technician secret (put there by the Flasher; the console shows its codes by frame
+           name, for any frame, with or without an account), then the account's unlock-code secret */
+        return hotpOk(unitSecret(), "tech_n", pin) || hotpOk(prefs(act).getString("otp_s", ""), "otp_n", pin);
+    }
+
+    private String unitSecret() {
+        try {
+            File f = new File(act.getFilesDir(), "tech.otp");
+            if (!f.exists()) return "";
+            String s = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).trim();
+            return s.matches("[0-9a-f]{40}") ? s : "";
+        } catch (Throwable t) { return ""; }
+    }
+
+    private boolean hotpOk(String s, String key, String pin) {
+        if (s == null || s.isEmpty()) return false;
         SharedPreferences p = prefs(act);
-        String s = p.getString("otp_s", "");
-        if (s.isEmpty()) return false;
-        int n = p.getInt("otp_n", 0);
+        int n = p.getInt(key, 0);
         try {
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA1");
             mac.init(new javax.crypto.spec.SecretKeySpec(unhex(s), "HmacSHA1"));
@@ -125,7 +139,7 @@ public class Tech {
                 byte[] h = mac.doFinal(java.nio.ByteBuffer.allocate(8).putLong(c).array());
                 int o = h[19] & 15;
                 int v = ((h[o] & 127) << 24 | (h[o + 1] & 255) << 16 | (h[o + 2] & 255) << 8 | (h[o + 3] & 255)) % 1000000;
-                if (String.format(java.util.Locale.US, "%06d", v).equals(pin)) { p.edit().putInt("otp_n", c).apply(); return true; }
+                if (String.format(java.util.Locale.US, "%06d", v).equals(pin)) { p.edit().putInt(key, c).apply(); return true; }
             }
         } catch (Throwable t) { }
         return false;

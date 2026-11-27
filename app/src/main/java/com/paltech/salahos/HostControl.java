@@ -357,6 +357,19 @@ public class HostControl {
         update(!screenBusy && h < 2, false);
     }
 
+    /** The secret for one-time unlock codes (the console shows them; the frame's page keeps it in pf-otp).
+        The page hands it over so technician mode can take the same codes; both sides keep the highest
+        counter used, so a code works once whichever pad it is typed into. Returns that counter. */
+    @JavascriptInterface
+    public int otpSync(String secret, int n) {
+        if (!trusted || secret == null || !secret.matches("[0-9a-f]{40}")) return n;
+        android.content.SharedPreferences p = act.getSharedPreferences("frame", android.content.Context.MODE_PRIVATE);
+        int have = secret.equals(p.getString("otp_s", "")) ? p.getInt("otp_n", 0) : 0;
+        int m = Math.max(have, n);
+        p.edit().putString("otp_s", secret).putInt("otp_n", m).apply();
+        return m;
+    }
+
     /** What Clock did when the app started: "ok", "restored" (put back after a power cut), or a reason it could not. */
     @JavascriptInterface
     public String clockState() { return MainActivity.clockStart; }

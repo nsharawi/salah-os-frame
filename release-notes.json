@@ -1,0 +1,14 @@
+{
+ "en": [
+  "The clock comes back right after a power cut, before the internet is back.",
+  "Updates install overnight, or straight away from Settings, System, App update.",
+  "Technician mode takes the one-time unlock codes from the console.",
+  "A power cut right after an update no longer brings back an older app."
+ ],
+ "ar": [
+  "تعود الساعة صحيحة بعد انقطاع الكهرباء، حتى قبل عودة الإنترنت.",
+  "تُثبَّت التحديثات أثناء الليل، أو فورًا من الإعدادات، النظام، تحديث التطبيق.",
+  "يقبل وضع الفني رموز الفتح لمرة واحدة من لوحة التحكم.",
+  "لم يعد انقطاع الكهرباء بعد التحديث مباشرة يعيد نسخة أقدم من التطبيق."
+ ]
+}

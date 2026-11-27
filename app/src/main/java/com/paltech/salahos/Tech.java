@@ -110,6 +110,27 @@ public class Tech {
         } catch (Throwable t) { return false; }
     }
 
+    /** A one-time unlock code from the console (HOTP, HMAC-SHA1, 6 digits) for this frame's secret,
+        any of the next 20 counters; each works once. The secret comes from the frame's page (HostControl.otpSync). */
+    private boolean codeOk(String pin) {
+        if (pin == null || !pin.matches("[0-9]{6}")) return false;
+        SharedPreferences p = prefs(act);
+        String s = p.getString("otp_s", "");
+        if (s.isEmpty()) return false;
+        int n = p.getInt("otp_n", 0);
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA1");
+            mac.init(new javax.crypto.spec.SecretKeySpec(unhex(s), "HmacSHA1"));
+            for (int c = n + 1; c <= n + 20; c++) {
+                byte[] h = mac.doFinal(java.nio.ByteBuffer.allocate(8).putLong(c).array());
+                int o = h[19] & 15;
+                int v = ((h[o] & 127) << 24 | (h[o + 1] & 255) << 16 | (h[o + 2] & 255) << 8 | (h[o + 3] & 255)) % 1000000;
+                if (String.format(java.util.Locale.US, "%06d", v).equals(pin)) { p.edit().putInt("otp_n", c).apply(); return true; }
+            }
+        } catch (Throwable t) { }
+        return false;
+    }
+
     /** "none" when no PIN has been set on this frame, "locked:<seconds>" after too many wrong tries, else "set". */
     @JavascriptInterface
     public String pinState() {
@@ -124,7 +145,7 @@ public class Tech {
         long now = System.currentTimeMillis();
         if (lockedUntil > now) return "locked:" + ((lockedUntil - now) / 1000 + 1);
         String rec = pinRecord();
-        if (rec.isEmpty() || (pin != null && matches(rec, pin))) {
+        if (rec.isEmpty() || (pin != null && (matches(rec, pin) || codeOk(pin)))) {
             fails = 0; setUnlocked(act);
             return "ok";
         }

@@ -350,11 +350,11 @@ public class HostControl {
         if (trusted) screenBusy = b;
     }
 
-    /** Called every 30 minutes. Finds a newer version; installs it by itself only at night (1 to 5 AM, the
+    /** Called every 30 minutes. Finds a newer version; installs it by itself only at night (midnight to 2 AM, the
         frame's time) and never during a prayer alert. Settings, System, App update installs it at once. */
     void autoCheck() {
         int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-        update(!screenBusy && h >= 1 && h < 5, false);
+        update(!screenBusy && h < 2, false);
     }
 
     /** What Clock did when the app started: "ok", "restored" (put back after a power cut), or a reason it could not. */

@@ -329,6 +329,8 @@ public class HostControl {
     private volatile boolean updBusy;
     private volatile int remoteCode;
     private volatile String remoteName = "";
+    private volatile long remoteSize;
+    private volatile String remoteNotes = "null";
 
     private long localCode() {
         try { return act.getPackageManager().getPackageInfo(act.getPackageName(), 0).getLongVersionCode(); }
@@ -348,10 +350,16 @@ public class HostControl {
         if (trusted) screenBusy = b;
     }
 
-    /** Called every 30 minutes. Installs a newer version as soon as there is one, except during a prayer alert. */
+    /** Called every 30 minutes. Finds a newer version; installs it by itself only at night (1 to 5 AM, the
+        frame's time) and never during a prayer alert. Settings, System, App update installs it at once. */
     void autoCheck() {
-        update(!screenBusy, false);
+        int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        update(!screenBusy && h >= 1 && h < 5, false);
     }
+
+    /** What Clock did when the app started: "ok", "restored" (put back after a power cut), or a reason it could not. */
+    @JavascriptInterface
+    public String clockState() { return MainActivity.clockStart; }
 
     private void update(final boolean install, final boolean manual) {
         if (updBusy) return;
@@ -384,6 +392,8 @@ public class HostControl {
         JSONObject o = new JSONObject(sb.toString());
         remoteCode = o.getInt("versionCode");
         remoteName = o.getString("versionName");
+        remoteSize = o.optLong("size", 0);
+        remoteNotes = o.optJSONObject("notes") != null ? o.optJSONObject("notes").toString() : "null";
         String sha = o.getString("sha256");
         if (remoteCode <= localCode()) { updMsg = "current"; return; }
         if (!install) { updMsg = "available"; return; }
@@ -436,7 +446,7 @@ public class HostControl {
     @JavascriptInterface
     public String updateState() {
         return "{\"cur\":\"" + localName() + "\",\"code\":" + localCode() + ",\"remote\":\"" + remoteName
-                + "\",\"rc\":" + remoteCode + ",\"s\":\"" + updMsg.replace("\"", "'") + "\",\"busy\":" + updBusy + "}";
+                + "\",\"rc\":" + remoteCode + ",\"size\":" + remoteSize + ",\"notes\":" + remoteNotes + ",\"s\":\"" + updMsg.replace("\"", "'") + "\",\"busy\":" + updBusy + "}";
     }
 
     /** install=false only checks. install=true installs now if a newer version exists. */

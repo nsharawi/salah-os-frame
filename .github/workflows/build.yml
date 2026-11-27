@@ -37,12 +37,13 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           mkdir -p /tmp/out && cp app/build/outputs/apk/debug/app-debug.apk /tmp/out/salah-os.apk
+          cp release-notes.json /tmp/out/notes.json 2>/dev/null || echo '{}' > /tmp/out/notes.json
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git checkout --orphan apk
           git rm -rf . -q
           cp /tmp/out/salah-os.apk .
-          printf '{"versionCode":%s,"versionName":"1.0.%s","sha256":"%s"}\n' $((100 + GITHUB_RUN_NUMBER)) $GITHUB_RUN_NUMBER $(sha256sum salah-os.apk | cut -d' ' -f1) > version.json
+          python3 -c "import json,hashlib,os;b=open('salah-os.apk','rb').read();n=int(os.environ['GITHUB_RUN_NUMBER']);d={'versionCode':100+n,'versionName':'1.0.'+str(n),'sha256':hashlib.sha256(b).hexdigest(),'size':len(b),'notes':json.load(open('/tmp/out/notes.json'))};print(json.dumps(d,ensure_ascii=False))" > version.json
           git add salah-os.apk version.json
           git commit -q -m "Build ${GITHUB_SHA::7}"
           git push -f origin apk
@@ -53,12 +54,13 @@ jobs:
         if: github.ref != 'refs/heads/main'
         run: |
           mkdir -p /tmp/out && cp app/build/outputs/apk/debug/app-debug.apk /tmp/out/salah-os.apk
+          cp release-notes.json /tmp/out/notes.json 2>/dev/null || echo '{}' > /tmp/out/notes.json
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git checkout --orphan apk-test
           git rm -rf . -q
           cp /tmp/out/salah-os.apk .
-          printf '{"versionCode":%s,"versionName":"1.0.%s","branch":"%s","sha256":"%s"}\n' $((100 + GITHUB_RUN_NUMBER)) $GITHUB_RUN_NUMBER "$GITHUB_REF_NAME" $(sha256sum salah-os.apk | cut -d' ' -f1) > version.json
+          python3 -c "import json,hashlib,os;b=open('salah-os.apk','rb').read();n=int(os.environ['GITHUB_RUN_NUMBER']);d={'versionCode':100+n,'versionName':'1.0.'+str(n),'branch':os.environ['GITHUB_REF_NAME'],'sha256':hashlib.sha256(b).hexdigest(),'size':len(b),'notes':json.load(open('/tmp/out/notes.json'))};print(json.dumps(d,ensure_ascii=False))" > version.json
           git add salah-os.apk version.json
           git commit -q -m "Branch build $GITHUB_REF_NAME ${GITHUB_SHA::7}"
           git push -f origin apk-test

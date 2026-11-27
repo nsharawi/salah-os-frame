@@ -123,6 +123,17 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         clockStart = Clock.restore(this);
+        /* A power cut in the first minutes after the app updated itself can leave Android's record of the
+           update unwritten, and the frame then starts the image's old app (seen on the dev frame, Nov 2026).
+           So once after each new version, write everything to storage. */
+        try {
+            android.content.SharedPreferences fp = getSharedPreferences("frame", MODE_PRIVATE);
+            long code = getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode();
+            if (fp.getLong("synced_code", 0) != code) {
+                fp.edit().putLong("synced_code", code).apply();
+                HostControl.shellAsync(this, "sleep 20; sync");
+            }
+        } catch (Throwable ignored) { }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         startedAt = System.currentTimeMillis();
 

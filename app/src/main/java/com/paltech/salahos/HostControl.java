@@ -294,14 +294,14 @@ public class HostControl {
                 /* the frame's name, its technician-code counter and the last good clock stay: they belong to
                    the unit, not to the setup */
                 java.util.Map<String, ?> all = prefs.getAll();
-                SharedPreferences.Editor e = prefs.edit().clear();
+                SharedPreferences.Editor keep = prefs.edit().clear();
                 for (String k : new String[] { "frame_name", "tech_n", "clock_good" }) {
                     Object v = all.get(k);
-                    if (v instanceof String) e.putString(k, (String) v);
-                    else if (v instanceof Integer) e.putInt(k, (Integer) v);
-                    else if (v instanceof Long) e.putLong(k, (Long) v);
+                    if (v instanceof String) keep.putString(k, (String) v);
+                    else if (v instanceof Integer) keep.putInt(k, (Integer) v);
+                    else if (v instanceof Long) keep.putLong(k, (Long) v);
                 }
-                e.commit();
+                keep.commit();
                 /* Android takes a moment to notice the forgotten network is gone. Restarting before it has
                    made the frame try the site over a network that was going away, and end on a browser error
                    instead of its first screen. Wait (up to 10 s) until the network is really down. */

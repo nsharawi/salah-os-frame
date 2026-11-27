@@ -291,7 +291,17 @@ public class HostControl {
                     if (FrameWifi.isOwner(act)) FrameWifi.forgetAll(act);
                     else outShell("cmd wifi list-networks | awk 'NR>1{print $1}' | while read i; do cmd wifi forget-network $i; done");
                 } catch (Throwable t) { Log.w(TAG, "reset: networks: " + t); }
-                prefs.edit().clear().commit();
+                /* the frame's name, its technician-code counter and the last good clock stay: they belong to
+                   the unit, not to the setup */
+                java.util.Map<String, ?> all = prefs.getAll();
+                SharedPreferences.Editor keep = prefs.edit().clear();
+                for (String k : new String[] { "frame_name", "tech_n", "clock_good" }) {
+                    Object v = all.get(k);
+                    if (v instanceof String) keep.putString(k, (String) v);
+                    else if (v instanceof Integer) keep.putInt(k, (Integer) v);
+                    else if (v instanceof Long) keep.putLong(k, (Long) v);
+                }
+                keep.commit();
                 /* Android takes a moment to notice the forgotten network is gone. Restarting before it has
                    made the frame try the site over a network that was going away, and end on a browser error
                    instead of its first screen. Wait (up to 10 s) until the network is really down. */
@@ -997,21 +1007,44 @@ public class HostControl {
 
     /**
      * This frame's name, which is also its hotspot: SalahOS- and six characters worked out from
-     * the serial. The assembly tool computes the same name the same way, so the one on the carton
-     * is the one the buyer sees on their phone.
+     * the serial. The Flasher and the assembly tool compute the same name the same way, so the one on
+     * the carton, the one the technician secret was made for, and the one the buyer sees all match.
+     * The serial is read directly (the device owner may); the shell is only a second try, because on a
+     * shipping frame its connection is off after setup. A name worked out from anything else is used
+     * for now but never saved, so the next start tries the serial again.
      */
     String frameName() {
+        String serial = hwSerial();
+        if (serial.length() > 0) {
+            String name = "SalahOS-" + crockford(serial);
+            if (!name.equals(prefs.getString("frame_name", ""))) prefs.edit().putString("frame_name", name).apply();
+            return name;
+        }
         String had = prefs.getString("frame_name", "");
         if (had.length() > 0) return had;
-        String serial = outShell("getprop ro.serialno").trim();
-        if (serial.length() == 0 || serial.contains("error")) {
-            /* Falls back to a per-device id, which is stable but will not match the carton. */
-            serial = android.provider.Settings.Secure.getString(act.getContentResolver(),
-                    android.provider.Settings.Secure.ANDROID_ID);
-        }
-        String name = "SalahOS-" + crockford(serial == null ? "" : serial);
-        prefs.edit().putString("frame_name", name).apply();
-        return name;
+        String id = android.provider.Settings.Secure.getString(act.getContentResolver(),
+                android.provider.Settings.Secure.ANDROID_ID);
+        return "SalahOS-" + crockford(id == null ? "" : id);
+    }
+
+    /** ro.serialno: Build.getSerial() (the device owner grants itself the phone-state permission it needs),
+     *  then the shell. Empty when neither gives a usable serial. */
+    String hwSerial() {
+        String s = "";
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager) act.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            if (dpm != null && dpm.isDeviceOwnerApp(act.getPackageName())
+                    && act.checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                dpm.setPermissionGrantState(new ComponentName(act, Admin.class), act.getPackageName(),
+                        android.Manifest.permission.READ_PHONE_STATE, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED);
+            s = android.os.Build.getSerial();
+        } catch (Throwable t) { Log.w(TAG, "serial: " + t); }
+        if (!usable(s)) s = outShell("getprop ro.serialno").trim();
+        return usable(s) ? s : "";
+    }
+
+    private static boolean usable(String s) {
+        return s != null && s.matches("[0-9A-Za-z]{6,40}") && !s.equalsIgnoreCase("unknown");
     }
 
     /** First 30 bits of the hash, read as six characters of Crockford's alphabet. */

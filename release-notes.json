@@ -1,8 +1,8 @@
 {
  "en": [
-  "Technician mode takes a one-time code from the console for any frame, signed in or not."
+  "A frame keeps its name and technician codes after a factory reset."
  ],
  "ar": [
-  "يقبل وضع الفني رمزًا لمرة واحدة من لوحة التحكم لأي إطار، سواء سُجّل الدخول أم لا."
+  "يحتفظ الإطار باسمه ورموز الفني بعد إعادة ضبط المصنع."
  ]
 }

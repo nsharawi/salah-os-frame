@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Build.getSerial() for the frame name; the device owner grants it to itself -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <!-- The frame's own Wi-Fi list and joining. Android ties seeing the networks in range to
          location, since the one gives away the other; as the device owner the app grants itself
          this, because there is nobody at a frame to ask. Nothing else uses location. -->

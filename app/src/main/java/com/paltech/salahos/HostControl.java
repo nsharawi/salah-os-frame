@@ -1095,7 +1095,7 @@ public class HostControl {
             if (f.length() > 20000) f.delete();
             java.io.FileWriter w = new java.io.FileWriter(f, true);
             w.write(new java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date())
-                    + " " + what + ": " + (detail == null ? "" : detail.trim().replace('\n', ' | ')) + "\n");
+                    + " " + what + ": " + (detail == null ? "" : detail.trim().replace("\n", " | ")) + "\n");
             w.close();
         } catch (Throwable ignored) { }
     }

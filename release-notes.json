@@ -1,8 +1,10 @@
 {
  "en": [
-  "The first setup screens use the Salah OS teal, with larger, easier-to-read text and buttons."
+  "Setup starts from your phone: join the frame's Wi-Fi from your phone's Wi-Fi settings and the setup page opens by itself.",
+  "The setup screens use the Salah OS teal, with larger, easier-to-read text and buttons."
  ],
  "ar": [
-  "شاشات الإعداد الأولى بلون Salah OS، بنص وأزرار أكبر وأسهل في القراءة."
+  "يبدأ الإعداد من هاتفك: اتصل بشبكة الإطار من إعدادات الواي فاي في هاتفك فتُفتح صفحة الإعداد تلقائيًا.",
+  "شاشات الإعداد بلون Salah OS، بنص وأزرار أكبر وأسهل في القراءة."
  ]
 }

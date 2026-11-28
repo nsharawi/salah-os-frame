@@ -11,12 +11,12 @@
 -->
 <style>
 :root{
-  --bg:#EDF2EE;--surface:#FFFFFF;--variant:#DCE5DD;--on:#191C1A;--on-variant:#414942;
-  --primary:#1C6B48;--on-primary:#FFFFFF;--container:#B9F0CF;--on-container:#002112;--err:#BA1A1A;
+  --bg:#F5FAFD;--surface:#FFFFFF;--variant:#DEE3E6;--on:#171C1F;--on-variant:#40484C;
+  --primary:#06677F;--on-primary:#FFFFFF;--container:#B6EAFF;--on-container:#004E60;--err:#BA1A1A;
 }
 @media (prefers-color-scheme:dark){
-  :root{--bg:#0E1411;--surface:#1D2621;--variant:#2A332D;--on:#E4EAE6;--on-variant:#9AA69F;
-        --primary:#8FD6B8;--on-primary:#003826;--container:#005134;--on-container:#B9F0CF;--err:#FFB4A9}
+  :root{--bg:#0F1416;--surface:#1B2023;--variant:#303638;--on:#DEE3E6;--on-variant:#BFC8CC;
+        --primary:#88D1EB;--on-primary:#003543;--container:#004E60;--on-container:#B6EAFF;--err:#FFB4A9}
 }
 *{box-sizing:border-box}
 html{font-size:100%}   /* a phone held in the hand, not a panel read across a room */
@@ -113,7 +113,9 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     'Try again': 'حاول مرة أخرى',
     'Open': 'مفتوحة',
     'Enter the code': 'أدخل الرمز',
-    'It is showing on the frame now.': 'يظهر الآن على شاشة الإطار.',
+    'Enter the verification code': 'أدخل رمز التحقق',
+    'Shown on the frame\u2019s screen now.': 'يظهر الآن على شاشة الإطار.',
+    'Next: choose your home Wi-Fi to connect your frame': 'التالي: اختر شبكة الواي فاي المنزلية لتوصيل إطارك',
     'That code did not match.': 'الرمز غير صحيح.',
     'Tries left:': 'المحاولات المتبقية:',
     'Too many tries. Restart the frame to try again.': 'عدد المحاولات كبير. أعد تشغيل الإطار للمحاولة من جديد.',
@@ -315,13 +317,14 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
       h = '<h1>' + esc(t('Choose your Wi-Fi')) + '</h1><p class="sub">' + esc(t('Pick the network this frame should use. It only has to be done once.')) + '</p>'
         + '<p class="note"><span class="spin"></span>' + esc(t('Looking for networks…')) + '</p>';
     } else if (phase === 'code') {
-      h = '<h1>' + esc(t('Enter the code')) + '</h1>'
-        + '<p class="sub">' + esc(t('It is showing on the frame now.')) + '</p>'
+      h = '<h1>' + esc(t('Enter the verification code')) + '</h1>'
+        + '<p class="sub">' + esc(t('Shown on the frame\u2019s screen now.')) + '</p>'
         + (note ? '<p class="note bad">' + esc(note) + '</p>' : '')
         /* No button. The sixth figure is the enter - there is nothing left to decide once it
            is in, and a button there only asks somebody to confirm what they have just done.
            The keyboard's own Enter still works; it simply is not drawn. */
-        + '<div class="pins" id="pins">' + pinBoxes() + '</div>';
+        + '<div class="pins" id="pins">' + pinBoxes() + '</div>'
+        + '<p class="sub">' + esc(t('Next: choose your home Wi-Fi to connect your frame')) + '</p>';
     } else if (phase === 'list') {
       h = '<h1>' + esc(t('Choose your Wi-Fi')) + '</h1><p class="sub">' + esc(t('Pick the network this frame should use. It only has to be done once.')) + '</p>';
       if (!nets.length) h += '<p class="note">' + esc(t('No networks found.')) + '</p>';

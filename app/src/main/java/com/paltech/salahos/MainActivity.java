@@ -79,6 +79,61 @@ public class MainActivity extends Activity {
     private Tech tech;
     static volatile boolean resumed;
     private WebView techView;
+    private View restartView;
+
+    /*
+      The frame says so before it restarts or turns off, as a phone does ("Restarting…" with a turning
+      ring on black), so the screen never just goes dark. Drawn by the app itself so it shows whatever
+      the page is doing. Language as the frame was set up.
+    */
+    static final int RESTART = 0, POWER_OFF = 1, RESET = 2;
+    void showRestarting(final int kind) {
+        /* read now: a reset clears the saved language a moment later */
+        final boolean ar = "ar".equals(getSharedPreferences("frame", MODE_PRIVATE).getString("ui_lang", ""));
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                if (restartView != null) return;
+                try {
+                    android.widget.LinearLayout col = new android.widget.LinearLayout(MainActivity.this);
+                    col.setOrientation(android.widget.LinearLayout.VERTICAL);
+                    col.setGravity(android.view.Gravity.CENTER);
+                    col.setBackgroundColor(Color.BLACK);
+                    col.setClickable(true);   /* nothing behind it takes a touch now */
+                    android.widget.TextView tv = new android.widget.TextView(MainActivity.this);
+                    String[] en = { "Restarting…", "Powering off…", "Resetting…" };
+                    String[] arT = { "جارٍ إعادة التشغيل…", "جارٍ إيقاف التشغيل…", "جارٍ إعادة الضبط…" };
+                    tv.setText((ar ? arT : en)[kind]);
+                    tv.setTextColor(Color.WHITE);
+                    tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 36);
+                    try {
+                        android.graphics.Typeface c = android.graphics.Typeface.createFromAsset(getAssets(), "fonts/Cairo.ttf");
+                        tv.setTypeface(android.graphics.Typeface.create(c, 500, false));
+                    } catch (Throwable ignored) { }
+                    col.addView(tv);
+                    android.widget.ProgressBar pb = new android.widget.ProgressBar(MainActivity.this);
+                    pb.setIndeterminate(true);
+                    pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
+                    android.widget.LinearLayout.LayoutParams lp = new android.widget.LinearLayout.LayoutParams(64, 64);
+                    lp.topMargin = 32;
+                    col.addView(pb, lp);
+                    root.addView(col, new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                    restartView = col;
+                } catch (Throwable t) { android.util.Log.w("SalahOS", "restart screen: " + t); }
+            }
+        });
+    }
+
+    /** Takes the restart screen away again, when Android refused to restart. */
+    void hideRestarting() {
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                if (restartView == null) return;
+                try { root.removeView(restartView); } catch (Throwable ignored) { }
+                restartView = null;
+            }
+        });
+    }
     private WebView selfTestView;
     private SelfTest selfTest;
     /* the last good time, once a minute (Clock): restored after a power cut */
@@ -138,6 +193,7 @@ public class MainActivity extends Activity {
                    does after a system update, so the new version starts on a clean frame. Storage is
                    written first; the restart comes once that is done. */
                 if (had != 0) {
+                    showRestarting(RESTART);
                     if (FrameWifi.isOwner(this)) {
                         HostControl.shellAsync(this, "sync");
                         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {

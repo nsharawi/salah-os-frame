@@ -181,6 +181,11 @@ public class HostControl {
         last = "running";
         new Thread(new Runnable() {
             @Override public void run() {
+                /* Restart and power off say so on screen first, and give it a moment to be seen. */
+                if ("reboot".equals(name) || "shutdown".equals(name)) {
+                    act.showRestarting("shutdown".equals(name) ? MainActivity.POWER_OFF : MainActivity.RESTART);
+                    try { Thread.sleep(1200); } catch (InterruptedException ignored) { }
+                }
                 /* As the frame's owner the app restarts it by asking Android. The command line is
                    the older way, kept for a frame that has not been made the owner. */
                 if (FrameWifi.isOwner(act)) {
@@ -190,7 +195,7 @@ public class HostControl {
                             DevicePolicyManager dpm = (DevicePolicyManager) act.getSystemService(Context.DEVICE_POLICY_SERVICE);
                             last = "ok";
                             dpm.reboot(new ComponentName(act, Admin.class));
-                        } catch (Throwable t) { last = "error: " + t; }
+                        } catch (Throwable t) { last = "error: " + t; act.hideRestarting(); }
                         return;
                     }
                 }
@@ -198,6 +203,7 @@ public class HostControl {
                 else if ("reboot".equals(name)) last = fireShell("reboot");
                 else if ("shutdown".equals(name)) last = fireShell("reboot -p");
                 else last = "error: unknown action";
+                if (last != null && last.startsWith("error")) act.hideRestarting();
             }
         }).start();
     }
@@ -287,6 +293,9 @@ public class HostControl {
         if (!local && !trusted) return;
         new Thread(new Runnable() {
             @Override public void run() {
+                /* "Resetting…" from the first moment until the frame restarts */
+                act.showRestarting(MainActivity.RESET);
+                try { Thread.sleep(800); } catch (InterruptedException ignored) { }
                 try {
                     if (FrameWifi.isOwner(act)) FrameWifi.forgetAll(act);
                     else outShell("cmd wifi list-networks | awk 'NR>1{print $1}' | while read i; do cmd wifi forget-network $i; done");
@@ -318,6 +327,7 @@ public class HostControl {
                     String r = fireShell("reboot");
                     if (r != null && !r.startsWith("error")) return;
                 } catch (Throwable t) { Log.w(TAG, "reset: restart: " + t); }
+                act.hideRestarting();
                 act.resetWeb();
             }
         }).start();

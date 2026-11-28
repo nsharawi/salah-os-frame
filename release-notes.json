@@ -3,12 +3,14 @@
   "Setup starts from your phone: join the frame's Wi-Fi from your phone's Wi-Fi settings and the setup page opens by itself.",
   "The setup screens use the Salah OS teal, with larger, easier-to-read text and buttons.",
   "The frame restarts after a factory reset and after an update, so it always starts fresh.",
-  "Back on the Wi-Fi step takes you to the first setup screen."
+  "Back on the Wi-Fi step takes you to the first setup screen.",
+  "The frame shows Restarting, Powering off or Resetting on screen before it does."
  ],
  "ar": [
   "يبدأ الإعداد من هاتفك: اتصل بشبكة الإطار من إعدادات الواي فاي في هاتفك فتُفتح صفحة الإعداد تلقائيًا.",
   "شاشات الإعداد بلون Salah OS، بنص وأزرار أكبر وأسهل في القراءة.",
   "يُعيد الإطار تشغيل نفسه بعد إعادة ضبط المصنع وبعد كل تحديث، ليبدأ دائمًا من جديد.",
-  "زر الرجوع في خطوة الواي فاي يعيدك إلى أول شاشة في الإعداد."
+  "زر الرجوع في خطوة الواي فاي يعيدك إلى أول شاشة في الإعداد.",
+  "يعرض الإطار «جارٍ إعادة التشغيل» أو «جارٍ إيقاف التشغيل» أو «جارٍ إعادة الضبط» على الشاشة قبل التنفيذ."
  ]
 }

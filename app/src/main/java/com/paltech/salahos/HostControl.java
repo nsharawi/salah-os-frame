@@ -980,7 +980,7 @@ public class HostControl {
       A shipping frame has USB debugging off, and with it the control channel the hotspot is raised
       through. For first setup only, the frame (its device owner) turns the channel on for itself and
       turns it off again as soon as the hotspot comes down. Only keys the frame already trusts (the app's
-      own and the bench PC's) are accepted on it. If the app stops mid-setup, MainActivity closes it on
+      own, added by the image's start-up script, and the bench PCs') are accepted on it, and only from the frame itself. If the app stops mid-setup, MainActivity closes it on
       the next start (the hotspot is not up then; setup reopens it if needed).
     */
     private boolean openChannelForSetup() {
@@ -990,8 +990,17 @@ public class HostControl {
             dpm.setGlobalSetting(new ComponentName(act, Admin.class), android.provider.Settings.Global.ADB_ENABLED, "1");
             prefs.edit().putBoolean("setup_channel", true).commit();
             Log.i(TAG, "control channel opened for first setup");
-            for (int i = 0; i < 24; i++) {
-                if (controlReady()) return true;
+            /* Up to 30 s: right after a reset the frame's own start-up script may still be adding the app's
+               key to the ones the channel trusts. */
+            for (int i = 0; i < 60; i++) {
+                if (controlReady()) {
+                    /* The channel also listens on the network. Only the frame itself may use it: closed to
+                       everything else, the setup hotspot included, before any phone can join. */
+                    Log.i(TAG, "setup channel firewall: " + outShell(
+                            "for t in iptables ip6tables; do $t -C INPUT ! -i lo -p tcp --dport " + ADB_PORT + " -j DROP 2>/dev/null"
+                          + " || $t -I INPUT 1 ! -i lo -p tcp --dport " + ADB_PORT + " -j DROP 2>&1; done; echo done"));
+                    return true;
+                }
                 try { Thread.sleep(500); } catch (InterruptedException e) { break; }
             }
             Log.w(TAG, "control channel did not answer after opening it");

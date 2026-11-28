@@ -508,7 +508,7 @@ public class MainActivity extends Activity {
     boolean isOnline() { return !offline; }
 
     private long joinedAt = 0;
-    private static final long QUIET_MS = 30000;    /* the phone has stopped asking: it has gone */
+    private static final long QUIET_MS = 60000;    /* the phone has sent nothing for a minute: it has gone */
     /* Long enough for the buyer to choose a masjid, a photo and a sound on their phone, which is
        what the hotspot is now carrying. The silence timer above is the real guard: a phone that
        walks away takes the hotspot down thirty seconds later whatever this says. */

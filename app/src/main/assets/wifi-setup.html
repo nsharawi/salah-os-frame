@@ -119,6 +119,7 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
     'That code did not match.': 'الرمز غير صحيح.',
     'Tries left:': 'المحاولات المتبقية:',
     'Too many tries. Restart the frame to try again.': 'عدد المحاولات كبير. أعد تشغيل الإطار للمحاولة من جديد.',
+    'Your frame is online': 'إطارك متصل بالإنترنت', 'Now choose your masjid and how the frame looks and sounds.': 'اختر الآن مسجدك وشكل الإطار وصوته.', 'About 2 minutes. Keep this page open.': 'دقيقتان تقريبًا. أبقِ هذه الصفحة مفتوحة.', 'Continue': 'متابعة',
     'Finish setup on this phone': 'أكمل الإعداد من هذا الهاتف',
     'Finish on your phone: point your camera at the code on the frame.':
       'أكمل الإعداد من هاتفك: وجّه الكاميرا إلى الرمز الظاهر على الإطار.',
@@ -365,10 +366,11 @@ a.btn{display:flex;align-items:center;justify-content:center;text-decoration:non
          as a code to scan. If this page does turn out to reach the internet - opened by hand in a
          real browser, or an iPhone sheet that is not bound - the button appears in its place. */
       h = '<div class="big"><div class="tick"><svg viewBox="0 0 24 24" aria-hidden="true">'
-        + '<path d="M5 12.5l5 5L19 8"/></svg></div><h1>' + esc(t('Connected')) + '</h1>'
-        + '<p class="sub">' + esc(t('Your frame is online. Salah OS is starting now.')) + '</p>';
-      if (go && netOk) h += '<div class="row"><a class="btn" href="' + esc(go) + '">'
-        + esc(t('Finish setup on this phone')) + '</a></div></div>';
+        + '<path d="M5 12.5l5 5L19 8"/></svg></div><h1>' + esc(t('Your frame is online')) + '</h1>'
+        + '<p class="sub">' + esc(t('Now choose your masjid and how the frame looks and sounds.')) + '</p>';
+      /* The frame keeps its hotspot up and passes its connection through, so the same page carries on. */
+      if (go && netOk) h += '<p class="note">' + esc(t('About 2 minutes. Keep this page open.')) + '</p><div class="row"><a class="btn" href="' + esc(go) + '">'
+        + esc(t('Continue')) + '</a></div></div>';
       else if (go) h += '<p class="note">'
         + esc(t('Finish on your phone: point your camera at the code on the frame.')) + '</p></div>';
       else h += '<p class="note">' + esc(t('You can put your phone back on your own Wi-Fi.')) + '</p></div>';

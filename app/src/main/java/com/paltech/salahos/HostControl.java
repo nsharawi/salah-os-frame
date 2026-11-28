@@ -978,6 +978,7 @@ public class HostControl {
             Log.i(TAG, "sharing the frame's connection with the phone: "
                      + (out == null ? "" : out.trim()));
             if (portal != null) portal.share(true);
+            watchForwarding();
         } catch (Throwable t) {
             Log.w(TAG, "netShare: " + t);
         }
@@ -1077,7 +1078,39 @@ public class HostControl {
     boolean hotspotUp() { return server != null && server.isRunning(); }
 
     /** How long the phone has been silent. Long.MAX_VALUE if there is no hotspot to be silent on. */
-    long hotspotQuietFor() { return server == null ? Long.MAX_VALUE : server.quietFor(); }
+    long hotspotQuietFor() {
+        long q = server == null ? Long.MAX_VALUE : server.quietFor();
+        /* Once the phone has gone on to the setup site through the frame, it stops asking the frame's own
+           page for anything; the traffic it sends through the frame is what says it is still there. */
+        if (lastFwdAt > 0) q = Math.min(q, android.os.SystemClock.elapsedRealtime() - lastFwdAt);
+        return q;
+    }
+
+    private volatile long lastFwdAt = 0;
+    private Thread fwdWatch;
+
+    /* Every 5 s while the frame shares its connection: has the phone sent anything through it? (the packet
+       count on the hotspot's forwarding rule) */
+    private synchronized void watchForwarding() {
+        if (fwdWatch != null) return;
+        lastFwdAt = android.os.SystemClock.elapsedRealtime();
+        fwdWatch = new Thread(new Runnable() {
+            @Override public void run() {
+                String was = "";
+                while (hotspotUp()) {
+                    try {
+                        String n = outShell("iptables -L FORWARD -v -x -n 2>/dev/null | awk '$6==\"" + apIface + "\"{print $1; exit}'");
+                        n = n == null ? "" : n.trim();
+                        if (n.length() > 0 && !n.equals(was)) { was = n; lastFwdAt = android.os.SystemClock.elapsedRealtime(); }
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) { break; } catch (Throwable ignored) { }
+                }
+                synchronized (HostControl.this) { fwdWatch = null; lastFwdAt = 0; }
+            }
+        }, "salah-fwd-watch");
+        fwdWatch.setDaemon(true);
+        fwdWatch.start();
+    }
 
     /**
      * True from the moment first-run setup starts until it is finished with.

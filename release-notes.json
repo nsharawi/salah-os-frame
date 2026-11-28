@@ -6,7 +6,8 @@
   "Back on the Wi-Fi step takes you to the first setup screen.",
   "The frame shows Restarting, Powering off or Resetting on screen before it does.",
   "The frame shows “Restarting…” on screen while it restarts.",
-  "A factory reset clears the masjid and look too, so setup starts fully fresh."
+  "A factory reset clears the masjid and look too, so setup starts fully fresh.",
+  "Setup from your phone carries on in the same page after Wi-Fi: masjid, photo, look and adhan, then an optional back-up."
  ],
  "ar": [
   "يبدأ الإعداد من هاتفك: اتصل بشبكة الإطار من إعدادات الواي فاي في هاتفك فتُفتح صفحة الإعداد تلقائيًا.",
@@ -15,6 +16,7 @@
   "زر الرجوع في خطوة الواي فاي يعيدك إلى أول شاشة في الإعداد.",
   "يعرض الإطار «جارٍ إعادة التشغيل» أو «جارٍ إيقاف التشغيل» أو «جارٍ إعادة الضبط» على الشاشة قبل التنفيذ.",
   "يعرض الإطار «جارٍ إعادة التشغيل…» على الشاشة أثناء إعادة التشغيل.",
-  "إعادة ضبط المصنع تمسح المسجد والمظهر أيضًا، فيبدأ الإعداد من جديد بالكامل."
+  "إعادة ضبط المصنع تمسح المسجد والمظهر أيضًا، فيبدأ الإعداد من جديد بالكامل.",
+  "يستمر الإعداد من هاتفك في الصفحة نفسها بعد الواي فاي: المسجد والصورة والمظهر والأذان، ثم حفظ نسخة اختياري."
  ]
 }

@@ -126,6 +126,19 @@ public class MainActivity extends Activity {
         });
     }
 
+    /** Clears what the page keeps in the browser (its settings, cookies), for a factory reset. */
+    void clearWebData() {
+        runOnUiThread(new Runnable() {
+            @Override public void run() {
+                try { android.webkit.WebStorage.getInstance().deleteAllData(); } catch (Throwable ignored) { }
+                try {
+                    android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
+                    cm.removeAllCookies(null); cm.flush();
+                } catch (Throwable ignored) { }
+            }
+        });
+    }
+
     /** Takes the restart screen away again, when Android refused to restart. */
     void hideRestarting() {
         runOnUiThread(new Runnable() {

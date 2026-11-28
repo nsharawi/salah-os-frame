@@ -311,6 +311,13 @@ public class HostControl {
                     else if (v instanceof Long) keep.putLong(k, (Long) v);
                 }
                 keep.commit();
+                /* The page's own settings (masjid, look, adhan) too. The page clears them itself just before
+                   it asks for the reset, but the browser writes that to storage lazily and the restart came
+                   first, so a reset frame came back with its old masjid and skipped the setup wizard. Clear
+                   them here as well, and remove the stored copy from disk. */
+                act.clearWebData();
+                try { Thread.sleep(1500); } catch (InterruptedException ignored) { }
+                deleteTree(new java.io.File(act.getApplicationInfo().dataDir, "app_webview/Default/Local Storage"));
                 /* Android takes a moment to notice the forgotten network is gone. Restarting before it has
                    made the frame try the site over a network that was going away, and end on a browser error
                    instead of its first screen. Wait (up to 10 s) until the network is really down. */
@@ -1018,6 +1025,14 @@ public class HostControl {
         t.start();
         try { t.join(ms); } catch (InterruptedException ignored) { }
         return ok[0];
+    }
+
+    private static void deleteTree(java.io.File f) {
+        try {
+            java.io.File[] in = f.listFiles();
+            if (in != null) for (java.io.File c : in) deleteTree(c);
+            if (f.exists() && !f.delete()) Log.w(TAG, "reset: could not delete " + f);
+        } catch (Throwable t) { Log.w(TAG, "reset: delete " + f + ": " + t); }
     }
 
     /** Turns USB debugging back off if first setup turned it on. Safe to call any time. */

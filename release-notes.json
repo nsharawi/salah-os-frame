@@ -7,7 +7,8 @@
   "The frame shows Restarting, Powering off or Resetting on screen before it does.",
   "The frame shows “Restarting…” on screen while it restarts.",
   "A factory reset clears the masjid and look too, so setup starts fully fresh.",
-  "Setup from your phone carries on in the same page after Wi-Fi: masjid, photo, look and adhan, then an optional back-up."
+  "Setup from your phone carries on in the same page after Wi-Fi: masjid, photo, look and adhan, then an optional back-up.",
+  "Technician mode has a new Material 3 look, with the Back, Home, Recent apps and Lock controls on every screen."
  ],
  "ar": [
   "يبدأ الإعداد من هاتفك: اتصل بشبكة الإطار من إعدادات الواي فاي في هاتفك فتُفتح صفحة الإعداد تلقائيًا.",
@@ -17,6 +18,7 @@
   "يعرض الإطار «جارٍ إعادة التشغيل» أو «جارٍ إيقاف التشغيل» أو «جارٍ إعادة الضبط» على الشاشة قبل التنفيذ.",
   "يعرض الإطار «جارٍ إعادة التشغيل…» على الشاشة أثناء إعادة التشغيل.",
   "إعادة ضبط المصنع تمسح المسجد والمظهر أيضًا، فيبدأ الإعداد من جديد بالكامل.",
-  "يستمر الإعداد من هاتفك في الصفحة نفسها بعد الواي فاي: المسجد والصورة والمظهر والأذان، ثم حفظ نسخة اختياري."
+  "يستمر الإعداد من هاتفك في الصفحة نفسها بعد الواي فاي: المسجد والصورة والمظهر والأذان، ثم حفظ نسخة اختياري.",
+  "لوضع الفنّي مظهر جديد بتصميم Material 3، مع أزرار الرجوع والرئيسية والتطبيقات الأخيرة والقفل في كل شاشة."
  ]
 }

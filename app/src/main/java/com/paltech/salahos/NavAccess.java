@@ -95,8 +95,10 @@ public class NavAccess extends AccessibilityService {
         if (getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true)) b.setBackgroundResource(tv.resourceId);
         b.setClickable(true);
         b.setOnClickListener(l);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(72), dp(56));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(88), dp(56));
+        lp.leftMargin = lp.rightMargin = dp(2);
         b.setLayoutParams(lp);
+        b.setColorFilter(0xFFDEE3E6);                 // on surface, dark scheme
         return b;
     }
 
@@ -111,9 +113,8 @@ public class NavAccess extends AccessibilityService {
             row.setGravity(Gravity.CENTER);
             row.setPadding(dp(12), 0, dp(12), 0);
             GradientDrawable bg = new GradientDrawable();
-            bg.setColor(0xF2222A26);                      // surface container high, dark scheme
-            bg.setCornerRadius(dp(28));
-            bg.setStroke(dp(1), 0x33FFFFFF);
+            bg.setColor(0xFF303638);                      // M3 floating toolbar: surface container highest, dark teal scheme
+            bg.setCornerRadius(dp(36));
             row.setBackground(bg);
             row.setElevation(dp(6));
             row.addView(button(R.drawable.ic_nav_back, "Back", new View.OnClickListener() {
@@ -125,16 +126,28 @@ public class NavAccess extends AccessibilityService {
             row.addView(button(R.drawable.ic_nav_recents, "Recent apps", new View.OnClickListener() {
                 @Override public void onClick(View v) { Tech.touch(NavAccess.this); performGlobalAction(GLOBAL_ACTION_RECENTS); }
             }));
-            row.addView(button(R.drawable.ic_nav_lock, "Lock and return to Salah OS", new View.OnClickListener() {
+            View div = new View(this);                    // a divider, then Lock in the tonal colour
+            div.setBackgroundColor(0xFF40484C);
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(1), dp(32));
+            dl.leftMargin = dl.rightMargin = dp(4);
+            row.addView(div, dl);
+            ImageView lk = button(R.drawable.ic_nav_lock, "Lock and return to Salah OS", new View.OnClickListener() {
                 @Override public void onClick(View v) { lock(); }
-            }));
+            });
+            GradientDrawable lb = new GradientDrawable();
+            lb.setColor(0xFF004E60);                      // primary container
+            lb.setCornerRadius(dp(28));
+            lk.setBackground(new android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(0x33B6EAFF), lb, null));
+            lk.setColorFilter(0xFFB6EAFF);                // on primary container
+            row.addView(lk);
             WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT, dp(56),
+                    WindowManager.LayoutParams.WRAP_CONTENT, dp(72),
                     WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT);
             lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-            lp.y = dp(16);
+            lp.y = dp(20);
             wm.addView(row, lp);
             bar = row;
         } catch (Throwable t) { bar = null; }

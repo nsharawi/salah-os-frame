@@ -273,6 +273,10 @@ public class Tech {
         act.runOnUiThread(new Runnable() { @Override public void run() { lockNow(); } });
     }
 
+    /** The launcher controls (Back, Home, Recent apps, Lock), shown over the technician page too. */
+    @JavascriptInterface
+    public void showBar() { if (isOpen(act)) NavAccess.show(act); }
+
     /** Close the PIN pad without unlocking. */
     @JavascriptInterface
     public void close() { lock(); }

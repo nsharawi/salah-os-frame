@@ -402,6 +402,13 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     id('hover').onclick = function () { id('dlg').hidden = false; };
     phoneSetup();
   }
+  function toStart() {
+    clearInterval(TICK); TICK = 0; FROMHOT = false;
+    try { if (F && F.netEnd) F.netEnd(); } catch (e) { }
+    mark(lang || 'en');
+    screen('pick');
+    try { if (F && F.netWarm) F.netWarm(); } catch (e) { }
+  }
   /* Setup starts from the frame's own hotspot: the phone does the typing. */
   function phoneSetup() {
     FROMHOT = false;
@@ -468,8 +475,11 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
       /* an older frame cannot clear itself; the least this page can do is ask the language again */
       if (!done) { try { if (F && F.setLang) F.setLang(''); } catch (e) { } setTimeout(function () { location.reload(); }, 600); }
     };
-    id('hb').onclick = function () { id('dlg').hidden = false; };
-    id('nb').onclick = function () { if (FROMHOT) phoneSetup(); else id('dlg').hidden = false; };
+    /* Back from the Wi-Fi stage (the phone screen or the frame's own list) is back to the first
+       screen, as on a phone: nothing is cleared, the language stays picked, and Get started picks up
+       from there. Start over is the one that clears the frame. */
+    id('hb').onclick = toStart;
+    id('nb').onclick = toStart;
     id('pb').onclick = function () { netShow(); };
   }
 

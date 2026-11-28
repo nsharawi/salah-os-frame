@@ -792,7 +792,7 @@ public class HostControl {
 
     private void bringUpHotspot() {
         try {
-            if (!controlReady()) {
+            if (!controlReady() && !openChannelForSetup()) {
                 netWhy = "this frame cannot control its own Wi-Fi";
                 netPhase = "error";
                 return;
@@ -966,7 +966,47 @@ public class HostControl {
         }
     }
 
+    /*
+      A shipping frame has USB debugging off, and with it the control channel the hotspot is raised
+      through. For first setup only, the frame (its device owner) turns the channel on for itself and
+      turns it off again as soon as the hotspot comes down. Only keys the frame already trusts (the app's
+      own and the bench PC's) are accepted on it. If the app stops mid-setup, MainActivity closes it on
+      the next start (the hotspot is not up then; setup reopens it if needed).
+    */
+    private boolean openChannelForSetup() {
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager) act.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            if (dpm == null || !dpm.isDeviceOwnerApp(act.getPackageName())) return false;
+            dpm.setGlobalSetting(new ComponentName(act, Admin.class), android.provider.Settings.Global.ADB_ENABLED, "1");
+            prefs.edit().putBoolean("setup_channel", true).commit();
+            Log.i(TAG, "control channel opened for first setup");
+            for (int i = 0; i < 24; i++) {
+                if (controlReady()) return true;
+                try { Thread.sleep(500); } catch (InterruptedException e) { break; }
+            }
+            Log.w(TAG, "control channel did not answer after opening it");
+            closeSetupChannel(act, prefs);
+        } catch (Throwable t) { Log.w(TAG, "control channel for setup: " + t); }
+        return false;
+    }
+
+    /** Turns USB debugging back off if first setup turned it on. Safe to call any time. */
+    static void closeSetupChannel(Context c, SharedPreferences p) {
+        if (!p.getBoolean("setup_channel", false)) return;
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager) c.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            if (dpm != null && dpm.isDeviceOwnerApp(c.getPackageName()))
+                dpm.setGlobalSetting(new ComponentName(c, Admin.class), android.provider.Settings.Global.ADB_ENABLED, "0");
+            Log.i(TAG, "control channel closed after setup");
+        } catch (Throwable t) { Log.w(TAG, "closing the setup channel: " + t); }
+        p.edit().remove("setup_channel").commit();
+    }
+
     private void tearDownHotspot() {
+        try { tearDownHotspotNow(); } finally { closeSetupChannel(act, prefs); }
+    }
+
+    private void tearDownHotspotNow() {
         try { if (server != null) server.stop(); } catch (Throwable ignored) { }
         try { if (portal != null) portal.stop(); } catch (Throwable ignored) { }
         try { if (dhcp != null) dhcp.stop(); } catch (Throwable ignored) { }

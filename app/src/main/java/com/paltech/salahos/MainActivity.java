@@ -123,6 +123,8 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         clockStart = Clock.restore(this);
+        /* If first setup opened the control channel and the app stopped before closing it, close it now. */
+        HostControl.closeSetupChannel(this, getSharedPreferences("frame", MODE_PRIVATE));
         /* A power cut in the first minutes after the app updated itself can leave Android's record of the
            update unwritten, and the frame then starts the image's old app (seen on the dev frame, Nov 2026).
            So once after each new version, write everything to storage. */

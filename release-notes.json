@@ -9,7 +9,7 @@
   "A factory reset clears the masjid and look too, so setup starts fully fresh.",
   "Setup from your phone carries on in the same page after Wi-Fi: masjid, photo, look and adhan, then an optional back-up.",
   "Technician mode has a new Material 3 look, with the Back, Home, Recent apps and Lock controls on every screen.",
-  "Setup tells Android users to tap the Sign in notification, and the frame no longer updates itself in the middle of setup."
+  "Setup tells Android users to tap the Wi-Fi notification, and the frame no longer updates itself in the middle of setup."
  ],
  "ar": [
   "يبدأ الإعداد من هاتفك: اتصل بشبكة الإطار من إعدادات الواي فاي في هاتفك فتُفتح صفحة الإعداد تلقائيًا.",
@@ -21,6 +21,6 @@
   "إعادة ضبط المصنع تمسح المسجد والمظهر أيضًا، فيبدأ الإعداد من جديد بالكامل.",
   "يستمر الإعداد من هاتفك في الصفحة نفسها بعد الواي فاي: المسجد والصورة والمظهر والأذان، ثم حفظ نسخة اختياري.",
   "لوضع الفنّي مظهر جديد بتصميم Material 3، مع أزرار الرجوع والرئيسية والتطبيقات الأخيرة والقفل في كل شاشة.",
-  "يطلب الإعداد من مستخدمي أندرويد الضغط على إشعار تسجيل الدخول، ولم يعد الإطار يحدّث نفسه في منتصف الإعداد."
+  "يطلب الإعداد من مستخدمي Android الضغط على إشعار Wi-Fi، ولم يعد الإطار يحدّث نفسه في منتصف الإعداد."
  ]
 }

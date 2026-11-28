@@ -69,7 +69,7 @@ header h1{margin:0;flex:1;font-size:36px;line-height:44px;font-weight:400}
  <div class="padw"><div class="pad" id="pad"></div></div>
 </div>
 <div id="grid" hidden>
- <header><h1>Technician mode</h1><button class="tonal" id="lock" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Lock</button></header>
+ <header><h1>Technician mode</h1></header>
  <div class="body">
   <div class="col">
    <div class="grp">
@@ -123,7 +123,7 @@ function grid(){$('pin').hidden=true;$('grid').hidden=false;var I={};try{I=JSON.
  var m=I.idleMinutes||10;idle(m);document.addEventListener('pointerdown',function(){idle(m)},true)}
 function usb(on){var b=$('usb');b.dataset.on=on?'1':'';b.setAttribute('aria-checked',on?'true':'false');$('usbsw').classList.toggle('on',!!on)}
 $('usb').onclick=function(){var r=String(T.setUsbDebug(!$('usb').dataset.on));if(r==='on'||r==='off')usb(r==='on');else{$('note').hidden=false;$('notet').textContent='USB debugging could not be changed ('+r.slice(3)+').'}};
-$('lock').onclick=function(){T.lock()};
+
 $('restart').onclick=function(){T.restartApp()};
 pad();
 if(T.isUnlocked())grid();else{var st=String(T.pinState());if(st.indexOf('locked:')===0)locked(Number(st.slice(7)));else if(st==='none')msg('No PIN is set on this frame yet. Enter any 6 digits.')}

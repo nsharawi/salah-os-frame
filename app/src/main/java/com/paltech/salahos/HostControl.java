@@ -823,6 +823,10 @@ public class HostControl {
             /* A frame that already knows a network is having an outage, not a first run. */
             String saved = outShell("cmd wifi list-networks");
             if (saved != null && saved.matches("(?s).*\\n\\s*\\d+\\s+\\S.*")) {
+                /* The radio may have been left off by a hotspot that came down (on this board the access point
+                   switches the frame's own Wi-Fi off), and then the known network is never reached: put it on. */
+                note("retry", outShell("cmd wifi stop-softap >/dev/null 2>&1; cmd wifi set-wifi-enabled enabled 2>&1; cmd wifi status 2>&1 | head -2"));
+                closeSetupChannel(act, prefs);
                 netPhase = "retry";
                 return;
             }
@@ -1078,7 +1082,7 @@ public class HostControl {
                      + "iptables -t nat -D POSTROUTING -s " + DhcpServer.NET + ".0/24 ! -o " + ap + " -j MASQUERADE 2>/dev/null; "
                      + "iptables -D FORWARD -i " + ap + " -j ACCEPT 2>/dev/null; "
                      + "iptables -D FORWARD -o " + ap + " -j ACCEPT 2>/dev/null; ")
-                   + "cmd wifi stop-softap");
+                   + "cmd wifi stop-softap; cmd wifi set-wifi-enabled enabled");   /* the access point can leave the frame's own Wi-Fi off */
         }
         catch (Throwable ignored) { }
         apIface = "";

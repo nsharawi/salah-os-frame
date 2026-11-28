@@ -193,6 +193,12 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         clockStart = Clock.restore(this);
+        /* The frame's own Wi-Fi on at every start: a setup hotspot that came down could leave it off, and a frame
+           with its radio off sat on "Let's get you connected" for good. As device owner the app may switch it on. */
+        new Thread(new Runnable() { @Override public void run() {
+            try { android.net.wifi.WifiManager w = (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+                  if (w != null && !w.isWifiEnabled() && FrameWifi.isOwner(MainActivity.this)) w.setWifiEnabled(true); } catch (Throwable ignored) { }
+        } }).start();
         /* If first setup opened the control channel and the app stopped before closing it, close it now. */
         HostControl.closeSetupChannel(this, getSharedPreferences("frame", MODE_PRIVATE));
         /* A power cut in the first minutes after the app updated itself can leave Android's record of the

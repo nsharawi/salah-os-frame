@@ -109,7 +109,9 @@ public class MainActivity extends Activity {
                         android.graphics.Typeface c = android.graphics.Typeface.createFromAsset(getAssets(), "fonts/Cairo.ttf");
                         tv.setTypeface(android.graphics.Typeface.create(c, 500, false));
                     } catch (Throwable ignored) { }
-                    col.addView(tv);
+                    tv.setGravity(android.view.Gravity.CENTER);
+                    col.addView(tv, new android.widget.LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                     android.widget.ProgressBar pb = new android.widget.ProgressBar(MainActivity.this);
                     pb.setIndeterminate(true);
                     pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));

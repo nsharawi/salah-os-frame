@@ -990,10 +990,10 @@ public class HostControl {
             dpm.setGlobalSetting(new ComponentName(act, Admin.class), android.provider.Settings.Global.ADB_ENABLED, "1");
             prefs.edit().putBoolean("setup_channel", true).commit();
             Log.i(TAG, "control channel opened for first setup");
-            /* Up to 30 s: right after a reset the frame's own start-up script may still be adding the app's
+            /* Up to about a minute: right after a reset the frame's own start-up script may still be adding the app's
                key to the ones the channel trusts. */
-            for (int i = 0; i < 60; i++) {
-                if (controlReady()) {
+            for (int i = 0; i < 12; i++) {
+                if (readyWithin(4000)) {
                     /* The channel also listens on the network. Only the frame itself may use it: closed to
                        everything else, the setup hotspot included, before any phone can join. */
                     Log.i(TAG, "setup channel firewall: " + outShell(
@@ -1007,6 +1007,17 @@ public class HostControl {
             closeSetupChannel(act, prefs);
         } catch (Throwable t) { Log.w(TAG, "control channel for setup: " + t); }
         return false;
+    }
+
+    /* One try at the channel that gives up after ms: a key the frame does not trust leaves the connection
+       waiting for an "Allow?" that never appears (the status bar that draws it is off). */
+    private boolean readyWithin(int ms) {
+        final boolean[] ok = { false };
+        Thread t = new Thread(new Runnable() { @Override public void run() { ok[0] = controlReady(); } });
+        t.setDaemon(true);
+        t.start();
+        try { t.join(ms); } catch (InterruptedException ignored) { }
+        return ok[0];
     }
 
     /** Turns USB debugging back off if first setup turned it on. Safe to call any time. */

@@ -83,6 +83,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
 .it.step{cursor:default}
 .num{flex:none;width:48px;height:48px;border-radius:24px;background:var(--p);color:var(--on-p);display:grid;place-items:center;font-size:24px;line-height:32px;font-weight:600}
 .st{display:flex;flex-direction:column;min-width:0}
+.hd{font-size:24px;line-height:32px;color:var(--dim)}
 .ssid{font-size:32px;line-height:40px;font-weight:600;letter-spacing:.5px;unicode-bidi:isolate;text-align:start}
 #live{padding:24px 24px 0;margin:0}
 .mini{flex:none;width:28px;height:28px;animation:turn 1.6s linear infinite}
@@ -228,7 +229,7 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
       <div class="grp">
         <div class="it step"><span class="num">1</span><span class="hl" id="hs1"></span></div>
         <div class="it step"><span class="num">2</span><span class="st"><span class="hl" id="hs2"></span><span class="ssid" id="ssid" dir="ltr"></span></span></div>
-        <div class="it step"><span class="num">3</span><span class="hl" id="hs3"></span></div>
+        <div class="it step"><span class="num">3</span><span class="st"><span class="hl" id="hs3"></span><span class="hd" id="hs3b"></span></span></div>
       </div>
       <p class="s" id="live"><svg class="mini" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="18"/></svg><span id="livet"></span></p>
     </div>
@@ -295,6 +296,8 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
     'Open Wi-Fi settings on your phone': 'افتح إعدادات الواي فاي في هاتفك',
     'Join this network': 'اتصل بهذه الشبكة',
     'Continue the setup on your phone': 'أكمل الإعداد من هاتفك',
+    'Open the setup page': 'افتح صفحة الإعداد',
+    'It opens by itself on iPhone. On Android, tap the Sign in notification.': 'تُفتح وحدها على آيفون. على أندرويد، اضغط إشعار تسجيل الدخول.',
     'Waiting for your phone': 'بانتظار هاتفك',
     'Choose Wi-Fi on this frame': 'اختر الواي فاي على هذا الإطار',
     'Authenticate the connection with your phone': 'وثّق الاتصال من هاتفك',
@@ -691,7 +694,9 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
       id('hp').textContent = t('Follow the steps on your phone');
       id('hs1').textContent = t('Open Wi-Fi settings on your phone');
       id('hs2').textContent = t('Join this network');
-      id('hs3').textContent = t('Continue the setup on your phone');
+      id('hs3').textContent = t('Open the setup page');
+      /* iPhone opens it by itself; Android (Pixel included) only shows a notification */
+      id('hs3b').textContent = t('It opens by itself on iPhone. On Android, tap the Sign in notification.');
       id('ssid').textContent = d.ssid;
       id('livet').textContent = t(LIVE[d.state] || 'Waiting for your phone');
       id('hsteps').hidden = false; id('cbox').hidden = true;

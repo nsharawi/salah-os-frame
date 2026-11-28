@@ -544,6 +544,7 @@ public class MainActivity extends Activity {
     void onHotspotJoined() {
         host.markNetDone();
         handoff = true;
+        host.note("joined", "the phone's network; sharing the connection");
         /* The phone is still sitting on the hotspot, and the page it is holding cannot leave the
            window it is in. Now that the frame has a connection, it carries the phone's traffic
            out through it, so that page reaches the setup session on its own. */

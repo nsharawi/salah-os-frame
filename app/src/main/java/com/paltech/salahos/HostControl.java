@@ -393,7 +393,13 @@ public class HostControl {
         frame's time) and never during a prayer alert. Settings, System, App update installs it at once. */
     void autoCheck() {
         int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-        update(!screenBusy && h < 2, false);
+        /* Never in the middle of setting up: an update restarts the frame, and one that landed between the Wi-Fi
+           step and the phone finishing (it was a quarter to two at night) threw the buyer back to the start.
+           So not while the setup hotspot is up or being raised, and not in the first hour after the frame got
+           its Wi-Fi. */
+        long since = System.currentTimeMillis() - prefs.getLong("net_done_at", 0);
+        boolean settingUp = hotspotUp() || netBusy() || since < 3600000L;
+        update(!screenBusy && !settingUp && h < 2, false);
     }
 
     /** The secret for one-time unlock codes (the console shows them; the frame's page keeps it in pf-otp).
@@ -691,7 +697,7 @@ public class HostControl {
     /** Forgets it, so the next first run is a session of its own. */
     void pairUsed() { prefs.edit().remove("pair_code").apply(); }
 
-    void markNetDone() { prefs.edit().putBoolean("net_done", true).apply(); }
+    void markNetDone() { prefs.edit().putBoolean("net_done", true).putLong("net_done_at", System.currentTimeMillis()).apply(); }
 
     String lang() { return prefs.getString("ui_lang", ""); }
 
@@ -924,6 +930,7 @@ public class HostControl {
             apUrl = "http://" + DhcpServer.SELF + (server.port() == 80 ? "" : ":" + server.port()) + "/";
             netPhase = "ready";
             Log.i(TAG, "hotspot " + ssid + " up on " + iface);
+            note("hotspot up", ssid + " on " + iface);
         } catch (Throwable t) {
             netWhy = t.getClass().getSimpleName();
             netPhase = "error";
@@ -977,6 +984,7 @@ public class HostControl {
               + "ip rule list 2>&1 | head -10");
             Log.i(TAG, "sharing the frame's connection with the phone: "
                      + (out == null ? "" : out.trim()));
+            note("share", out);
             if (portal != null) portal.share(true);
             watchForwarding();
         } catch (Throwable t) {
@@ -1053,6 +1061,7 @@ public class HostControl {
     }
 
     private void tearDownHotspotNow() {
+        note("hotspot down", "quiet " + (hotspotQuietFor() / 1000) + " s");
         try { if (server != null) server.stop(); } catch (Throwable ignored) { }
         try { if (portal != null) portal.stop(); } catch (Throwable ignored) { }
         try { if (dhcp != null) dhcp.stop(); } catch (Throwable ignored) { }
@@ -1078,6 +1087,19 @@ public class HostControl {
     boolean hotspotUp() { return server != null && server.isRunning(); }
 
     /** How long the phone has been silent. Long.MAX_VALUE if there is no hotspot to be silent on. */
+    /* A short record of the setup network steps in the app's own files (files/setup-net.log, last 20 KB), so a
+       bench PC can read what happened after the frame has restarted and its log is gone. */
+    void note(String what, String detail) {
+        try {
+            java.io.File f = new java.io.File(act.getFilesDir(), "setup-net.log");
+            if (f.length() > 20000) f.delete();
+            java.io.FileWriter w = new java.io.FileWriter(f, true);
+            w.write(new java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US).format(new java.util.Date())
+                    + " " + what + ": " + (detail == null ? "" : detail.trim().replace('\n', ' | ')) + "\n");
+            w.close();
+        } catch (Throwable ignored) { }
+    }
+
     long hotspotQuietFor() {
         long q = server == null ? Long.MAX_VALUE : server.quietFor();
         /* Once the phone has gone on to the setup site through the frame, it stops asking the frame's own

@@ -129,9 +129,25 @@ public class MainActivity extends Activity {
         try {
             android.content.SharedPreferences fp = getSharedPreferences("frame", MODE_PRIVATE);
             long code = getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode();
-            if (fp.getLong("synced_code", 0) != code) {
-                fp.edit().putLong("synced_code", code).apply();
-                HostControl.shellAsync(this, "sleep 20; sync");
+            long had = fp.getLong("synced_code", 0);
+            if (had != code) {
+                fp.edit().putLong("synced_code", code).commit();
+                /* After an update (not the first install) the whole frame restarts once, the way a phone
+                   does after a system update, so the new version starts on a clean frame. Storage is
+                   written first; the restart comes once that is done. */
+                if (had != 0) {
+                    if (FrameWifi.isOwner(this)) {
+                        HostControl.shellAsync(this, "sync");
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(new Runnable() {
+                            @Override public void run() {
+                                try {
+                                    android.app.admin.DevicePolicyManager dpm = (android.app.admin.DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+                                    dpm.reboot(new android.content.ComponentName(MainActivity.this, Admin.class));
+                                } catch (Throwable t) { android.util.Log.w("SalahOS", "restart after update: " + t); }
+                            }
+                        }, 8000);
+                    } else HostControl.shellAsync(this, "sleep 5; sync; reboot");
+                } else HostControl.shellAsync(this, "sleep 20; sync");
             }
         } catch (Throwable ignored) { }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

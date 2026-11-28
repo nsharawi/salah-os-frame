@@ -306,6 +306,18 @@ public class HostControl {
                    made the frame try the site over a network that was going away, and end on a browser error
                    instead of its first screen. Wait (up to 10 s) until the network is really down. */
                 for (int i = 0; i < 20 && act.online(); i++) { try { Thread.sleep(500); } catch (InterruptedException e) { break; } }
+                /* Then the whole frame restarts, as a phone does after a reset: Wi-Fi, the hotspot and the
+                   page all start clean, and setup begins at the language screen. Only if Android refuses
+                   does the page start over in place. */
+                try {
+                    if (FrameWifi.isOwner(act)) {
+                        DevicePolicyManager dpm = (DevicePolicyManager) act.getSystemService(Context.DEVICE_POLICY_SERVICE);
+                        dpm.reboot(new ComponentName(act, Admin.class));
+                        return;
+                    }
+                    String r = fireShell("reboot");
+                    if (r != null && !r.startsWith("error")) return;
+                } catch (Throwable t) { Log.w(TAG, "reset: restart: " + t); }
                 act.resetWeb();
             }
         }).start();

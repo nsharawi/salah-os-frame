@@ -1,10 +1,12 @@
 {
  "en": [
   "Setup starts from your phone: join the frame's Wi-Fi from your phone's Wi-Fi settings and the setup page opens by itself.",
-  "The setup screens use the Salah OS teal, with larger, easier-to-read text and buttons."
+  "The setup screens use the Salah OS teal, with larger, easier-to-read text and buttons.",
+  "Factory reset restarts the frame, so setup starts fresh."
  ],
  "ar": [
   "يبدأ الإعداد من هاتفك: اتصل بشبكة الإطار من إعدادات الواي فاي في هاتفك فتُفتح صفحة الإعداد تلقائيًا.",
-  "شاشات الإعداد بلون Salah OS، بنص وأزرار أكبر وأسهل في القراءة."
+  "شاشات الإعداد بلون Salah OS، بنص وأزرار أكبر وأسهل في القراءة.",
+  "تُعيد إعادة ضبط المصنع تشغيل الإطار، ليبدأ الإعداد من جديد."
  ]
 }

@@ -18,14 +18,15 @@
 @font-face{font-family:"Cairo";src:url("fonts/Cairo.ttf") format("truetype");font-weight:200 1000;font-style:normal;font-display:block}
 
 :root{
-  --bg:#F6F7F8; --on:#17191C; --dim:#454C54; --row:#EEF0F2; --line:#C3C7CC;
-  --p:#2E649E; --on-p:#FFFFFF;
+  --bg:#F5FAFD; --on:#171C1F; --dim:#40484C; --row:#EAEFF1; --line:#70787C;
+  --p:#06677F; --on-p:#FFFFFF; --dlg:#FFFFFF;
   --ok:#0B5133; --ok-bg:#B7F0C8;
   --em:cubic-bezier(.2,0,0,1);
 }
+@media (prefers-color-scheme:dark){:root{--bg:#0F1416;--on:#DEE3E6;--dim:#BFC8CC;--row:#1B2023;--line:#8A9296;--p:#88D1EB;--on-p:#003543;--dlg:#252B2D}}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--on);
-  font:400 16px/24px "Cairo",system-ui,"Segoe UI",Roboto,sans-serif;-webkit-user-select:none;user-select:none}
+  font:400 24px/32px "Cairo",system-ui,"Segoe UI",Roboto,sans-serif;-webkit-user-select:none;user-select:none}
 
 /* The setup wizard's own frame: a quiet left panel carrying the logo and the question, the answer
    on the right, one pill button in the corner. The same shape the wizard that follows uses, so a
@@ -72,11 +73,11 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
   figures are drawn for Roboto, so they are left off rather than borrowed onto Cairo.
 */
 /* the one pill button */
-.btn{height:60px;min-width:175px;padding:0 32px;border:0;border-radius:30px;background:var(--p);
-     color:var(--on-p);font:500 14px/20px inherit;font-family:inherit;cursor:pointer;
+.btn{height:88px;min-width:240px;padding:0 48px;border:0;border-radius:44px;background:var(--p);
+     color:var(--on-p);font:500 24px/32px "Cairo",system-ui,sans-serif;cursor:pointer;
      transition:transform .12s var(--em)}
 .btn:active{transform:scale(.98)}
-.btn.ghost{background:transparent;color:var(--p);min-width:0;padding:0 20px}
+.btn.ghost{background:transparent;color:var(--p);min-width:0;padding:0 32px}
 
 /* the hotspot code, and the quieter bits */
 /* The code and nothing else. A card behind it only read as a pale box around a white box. */
@@ -122,40 +123,39 @@ h1{margin:0 0 16px;font-size:45px;line-height:52px;font-weight:400;letter-spacin
   .spin{animation:none}
   .spin circle{animation:none;stroke-dasharray:88 38}
   .tick path{animation:none;stroke-dashoffset:0}}
-.s{display:flex;align-items:center;gap:12px;font-size:14px;line-height:20px;color:var(--dim)}
+.s{display:flex;align-items:center;gap:12px;font-size:24px;line-height:32px;color:var(--dim)}
 
 /* The frame's own Wi-Fi list. Rows are the same Settings-style group as the language choice, a
    step shorter so more than three networks fit, and the list scrolls inside its own half. */
 #net .wzr,#pw .wzr{align-items:stretch;padding-block:24px 0}
 #net .wzi{overflow-y:auto;display:flex;flex-direction:column;gap:12px}
-.it.net{min-height:64px}
+.it.net{min-height:90px}
 .it.net .hl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;unicode-bidi:isolate}
 .it.net svg{flex:none;width:24px;height:24px}
 .ico{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.hint{margin:0;font-size:22px;line-height:28px;color:var(--dim);padding-inline:16px}
+.hint{margin:0;font-size:24px;line-height:32px;color:var(--dim);padding-inline:16px}
 .hint.bad{color:#8C1D18}
 /* the password: an outlined field big enough to read back from where the frame is used */
 #pw .wzi{display:flex;flex-direction:column;justify-content:center;gap:16px}
-.field{width:100%;height:72px;padding:0 20px;border:2px solid var(--line);border-radius:4px;background:transparent;
-  color:var(--on);font:400 24px/32px inherit;font-family:inherit;direction:ltr;text-align:start;outline:0;
+.field{width:100%;height:88px;padding:0 20px;border:2px solid var(--line);border-radius:4px;background:transparent;
+  color:var(--on);font:400 24px/32px "Cairo",system-ui,sans-serif;direction:ltr;text-align:start;outline:0;
   -webkit-user-select:text;user-select:text}
 .field:focus{border-color:var(--p)}
 [dir=rtl] .field{text-align:end}
 /* back, top corner on the side reading starts from; the arrow turns round in Arabic */
-.back{position:absolute;inset-block-start:16px;inset-inline-start:16px;width:48px;height:48px;border:0;border-radius:24px;
+.back{position:absolute;inset-block-start:16px;inset-inline-start:16px;width:72px;height:72px;border:0;border-radius:36px;
   background:transparent;color:var(--on);display:grid;place-items:center;cursor:pointer;z-index:1}
 .back:active{background:var(--row)}
-.back svg{width:24px;height:24px}
+.back svg{width:32px;height:32px}
 [dir=rtl] .back svg{transform:scaleX(-1)}
 /* the one question the frame ever stops to ask */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.32);display:grid;place-items:center;z-index:5}
 .scrim[hidden]{display:none}
-.dlg{background:#FFFFFF;border-radius:28px;padding:24px;min-width:320px;max-width:560px;margin:24px}
-.dlg h2{margin:0 0 16px;font-size:24px;line-height:32px;font-weight:400}
-.dlg p{margin:0 0 24px;font-size:22px;line-height:28px;color:var(--dim)}
-.dlg .da{display:flex;justify-content:flex-end;gap:8px}
-.dlg .btn{height:48px}
-.why{margin:16px 0 0;font-size:14px;line-height:20px;color:#8C1D18}
+.dlg{background:var(--dlg);border-radius:28px;padding:32px;min-width:480px;max-width:720px;margin:24px}
+.dlg h2{margin:0 0 16px;font-size:32px;line-height:40px;font-weight:400}
+.dlg p{margin:0 0 32px;font-size:24px;line-height:32px;color:var(--dim)}
+.dlg .da{display:flex;justify-content:flex-end;gap:16px}
+.why{margin:16px 0 0;font-size:24px;line-height:32px;color:#8C1D18}
 @media (prefers-reduced-motion:reduce){.d{animation:none}*{transition:none !important}}
 @media (max-width:900px),(max-height:560px){
   .wz.on{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) auto;text-align:center}
